@@ -29,14 +29,14 @@ apps/prism-companion-web
 
 ## Why this split
 
-- `prism-alert-engine` has zero Ring-specific imports — it takes a normalized event and Bedrock output, and returns channel payloads. This is what makes it a credible standalone Open Source submission.
-- `prism-backend` owns every Ring- and Bedrock-specific call, so a judge checking "is the required API actually called at runtime" has one place to look.
-- `prism-companion-web` is the only piece a judge needs to open in a browser.
+- `prism-alert-engine` has zero Ring-specific imports — it takes a normalized event and Bedrock output, and returns channel payloads. That's what makes it a genuine standalone package rather than just a folder inside a Ring-only app.
+- `prism-backend` owns every Ring- and Bedrock-specific call, so there's one place to look to confirm the Ring API is actually called at runtime.
+- `prism-companion-web` is the only piece you need to open in a browser to see and feel the result.
 
-## Repeat-visitor memory (Phase 4)
+## Repeat-visitor memory
 
 Bedrock embedding model → vector per event description → `pgvector` similarity search against the current session window → de-escalate Signal Class on a high-similarity match. Genuine vector search, not keyword/hash matching.
 
 ## Latency notes
 
-_(fill in during Phase 2.4 / 6.3 with measured numbers — Bedrock round-trip, webhook-to-alert end-to-end)_
+_(not yet measured — will note Bedrock round-trip and webhook-to-alert end-to-end latency here once instrumented)_

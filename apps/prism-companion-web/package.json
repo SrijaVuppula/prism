@@ -2,7 +2,7 @@
   "name": "prism-companion-web",
   "version": "0.1.0",
   "private": true,
-  "description": "React/PWA companion app — the only piece a judge needs to open in a browser.",
+  "description": "React/PWA companion app that receives Prism alerts in real time.",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

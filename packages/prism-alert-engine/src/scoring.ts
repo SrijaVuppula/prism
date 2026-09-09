@@ -1,8 +1,9 @@
-// The Signal Score engine — the project's core differentiator.
+// The Signal Score engine.
 //
 // Modeled deliberately after an Enthalpy-Comfort-Index-style pattern: a domain-specific,
 // weighted, line-by-line explainable score rather than a bare LLM opinion. Every factor
-// below shows up individually in `breakdown`, so it can be defended under judge questioning.
+// below shows up individually in `breakdown`, so the result can be inspected and explained
+// after the fact instead of taken on faith.
 //
 // TODO: calibrate weights and thresholds against a labeled test set
 // (~30-50 events across all four categories, plus edge cases).

@@ -26,7 +26,7 @@ export interface ScoringInput {
 export interface ScoringResult {
   signalScore: number; // 0-100
   signalClass: SignalClass;
-  breakdown: Record<string, number>; // per-factor contribution, for judge-facing explainability
+  breakdown: Record<string, number>; // per-factor contribution, so the score is fully explainable
 }
 
 /** Normalized event shape used across the pipeline (mirrors PrismEvent in prism-backend). */

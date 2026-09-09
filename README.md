@@ -1,21 +1,24 @@
 # Prism
 
-**Context-aware, multi-channel accessible alerts for Ring.**
-Built for the *Build, Ship, Shape: Amazon Developer Hackathon* — Primary Track: Ring · Mini-Challenges: AWS Builder, Open Source.
+Context-aware, multi-channel accessible alerts for Ring.
+
+## The problem
+
+Ring and Nest doorbells alert through sound and app pings only, which is a well-documented failure mode for deaf, hard-of-hearing, and DeafBlind users. Today's fix is a separate proprietary hardware system (strobe/vibration pucks) that has no idea what the camera is actually seeing — it buzzes for any trigger, with no context.
 
 ## What it does
 
-Ring/Nest doorbells alert with sound and app pings only — a documented failure mode for deaf, hard-of-hearing, and DeafBlind users. Prism connects Ring's event stream to a Bedrock multimodal context layer and a custom, explainable **Signal Score** engine, then drives distinct haptic, visual, and push alert patterns on a companion web app — no proprietary hardware required.
+Prism connects Ring's real-time event stream to an AI context layer (Bedrock multimodal) and a custom, explainable Signal Score, then translates the result into distinct, purposeful haptic, visual, and push-notification patterns on a companion web app — fully in software, running on a device the user already owns. No custom hardware required.
 
 ## Structure
 
-- `packages/prism-alert-engine` — Ring-agnostic core: Bedrock classification wrapper, the Signal Score engine, and channel encoders (haptic/visual/push). Standalone, MIT-licensed (Open Source mini-challenge).
+- `packages/prism-alert-engine` — Ring-agnostic core: a Bedrock classification wrapper, the Signal Score engine, and channel encoders (haptic/visual/push). Standalone and MIT-licensed; any doorbell or camera vendor could adopt it directly.
 - `packages/prism-backend` — Ring OAuth + webhook ingestion, Bedrock/AgentCore orchestration, Postgres + pgvector event store.
-- `apps/prism-companion-web` — React/PWA companion app judges open in a browser to see and feel the result.
-- `infra/` — AWS config, local docker-compose (Postgres + backend + web).
-- `docs/` — architecture, accessibility, judging map, friction log, demo script.
+- `apps/prism-companion-web` — the React/PWA companion app that receives alerts in real time.
+- `infra/` — AWS config and a local docker-compose setup (Postgres + backend + web).
+- `docs/` — architecture and accessibility notes.
 
-## Setup (target: 3 commands or fewer)
+## Setup
 
 ```bash
 npm install
@@ -25,7 +28,7 @@ npm run dev:backend && npm run dev:web
 
 ## Status
 
-🚧 Phase 0 — repo scaffolded. See `docs/JUDGING_MAP.md` and the project plan for the full 8-phase build sequence.
+Ring OAuth account linking, HMAC-verified webhook ingestion (normalized into a shared event schema and persisted), and the Signal Score engine are built and tested. Bedrock classification, real-time delivery to the companion app, and repeat-visitor memory are still in progress.
 
 ## License
 

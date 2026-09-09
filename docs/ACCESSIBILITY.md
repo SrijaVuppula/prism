@@ -2,7 +2,7 @@
 
 ## Target: WCAG 2.2 AA (Ring Partner API guideline requirement)
 
-### Checklist (draft — fill in as built, audit with axe-core in Phase 6.1)
+### Checklist (draft — fill in as built, audit with axe-core once the companion app is in place)
 
 - [ ] Color contrast ≥ 4.5:1 for text, ≥ 3:1 for UI components (context card, Signal Class badge)
 - [ ] All interactive elements reachable and operable via keyboard alone
@@ -21,8 +21,8 @@
 | Notable | `[150, 100, 150]` | Two-beat pattern — noticeably distinct from Routine |
 | Urgent | `[300, 150, 300, 150, 300]` | Long-pause-long, repeated — unmistakable from the other two |
 
-_(finalize exact values in Phase 3.2; keep this table in sync with `channels/haptic.ts`)_
+_(keep this table in sync with `channels/haptic.ts` as the patterns are tuned)_
 
 ## Known-visitor tagging — privacy note
 
-Opt-in only, disclosed clearly in README and demo video, local-only storage. See Risk Register in the project plan.
+Opt-in only, disclosed clearly in the README, local-only storage — never uploaded or shared.
