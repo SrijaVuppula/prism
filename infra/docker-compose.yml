@@ -1,0 +1,24 @@
+version: "3.9"
+services:
+  postgres:
+    image: ankane/pgvector:latest
+    environment:
+      POSTGRES_USER: prism
+      POSTGRES_PASSWORD: prism
+      POSTGRES_DB: prism
+    ports:
+      - "5432:5432"
+    volumes:
+      - prism_pg_data:/var/lib/postgresql/data
+
+  backend:
+    build: ../packages/prism-backend
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgres://prism:prism@postgres:5432/prism
+    depends_on:
+      - postgres
+
+volumes:
+  prism_pg_data:

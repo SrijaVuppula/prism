@@ -1,0 +1,24 @@
+{
+  "name": "prism-backend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Ring OAuth + webhook ingestion, Bedrock/AgentCore orchestration, Postgres+pgvector event store.",
+  "scripts": {
+    "dev": "ts-node-dev src/server.ts",
+    "build": "tsc",
+    "test": "vitest run",
+    "lint": "eslint src --ext .ts"
+  },
+  "dependencies": {
+    "express": "^4.19.0",
+    "ws": "^8.18.0",
+    "pg": "^8.12.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "ts-node-dev": "^2.0.0",
+    "vitest": "^2.0.0",
+    "@types/express": "^4.17.0",
+    "@types/node": "^20.0.0"
+  }
+}
