@@ -6,7 +6,6 @@
   "scripts": {
     "dev": "ts-node-dev src/server.ts",
     "build": "tsc",
-    "test": "vitest run",
     "lint": "eslint src --ext .ts"
   },
   "dependencies": {

@@ -1,5 +1,5 @@
 // Entry point. Wires up: webhook receiver, WebSocket server, and (once built)
-// the orchestration pipeline. Kept minimal until Phase 1 lands.
+// the orchestration pipeline. Kept minimal for now.
 
 import express from "express";
 
@@ -10,8 +10,8 @@ app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
 });
 
-// TODO (Phase 1.2): mount the Ring webhook route here.
-// TODO (Phase 3.5): attach the WebSocket/SSE server here.
+// TODO: mount the Ring webhook route here.
+// TODO: attach the WebSocket/SSE server here.
 
 app.listen(PORT, () => {
   console.log(`prism-backend listening on :${PORT}`);

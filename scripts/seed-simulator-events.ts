@@ -1,7 +1,7 @@
 // Replays a realistic sequence of Ring-shaped events at the local webhook
 // receiver so downstream code can be iterated on without live device activity.
-// TODO (Phase 1.4): fill in the real payload shape confirmed in Spike 1
-// (Phase 0.2) and POST each to the local webhook endpoint.
+// TODO: fill in the real payload shape once confirmed against the Ring
+// sandbox/simulator, and POST each to the local webhook endpoint.
 
 const SAMPLE_EVENTS = [
   { kind: "ding", description: "doorbell pressed" },

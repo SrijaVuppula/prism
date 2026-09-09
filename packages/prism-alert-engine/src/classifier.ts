@@ -2,8 +2,8 @@
 // Kept provider-agnostic at the interface level: swap the implementation without
 // touching scoring.ts or the channel encoders.
 //
-// TODO (Phase 2.1): implement the real Bedrock call in prism-backend and have it
-// satisfy this interface, or move the actual SDK call here if you want the engine
+// TODO: implement the real Bedrock call in prism-backend and have it satisfy
+// this interface, or move the actual SDK call here if you want the engine
 // package to be fully self-contained. Left as an interface for now since this
 // package should stay free of AWS-credential concerns.
 

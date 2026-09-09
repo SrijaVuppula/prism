@@ -4,8 +4,8 @@
 // weighted, line-by-line explainable score rather than a bare LLM opinion. Every factor
 // below shows up individually in `breakdown`, so it can be defended under judge questioning.
 //
-// TODO (Phase 2.4 / 6.3): calibrate weights and thresholds against the labeled
-// synthetic test set (~30-50 events across all four categories + edge cases).
+// TODO: calibrate weights and thresholds against a labeled test set
+// (~30-50 events across all four categories, plus edge cases).
 
 import { EventCategory, ScoringInput, ScoringResult, SignalClass } from "./types";
 
@@ -17,7 +17,7 @@ const CATEGORY_BASE_WEIGHT: Record<EventCategory, number> = {
   animal: 10,
 };
 
-// Score thresholds mapping to discrete Signal Class. Tune in Phase 2.4.
+// Score thresholds mapping to discrete Signal Class. Tune against real data.
 const URGENT_THRESHOLD = 70;
 const NOTABLE_THRESHOLD = 35;
 
