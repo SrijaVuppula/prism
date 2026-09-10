@@ -18,6 +18,7 @@ import {
   verifyHmacSignature,
 } from "./webhookHandler";
 import { getRingEventStore } from "../db/eventStore";
+import { runPipeline } from "../bedrock/agentOrchestration";
 
 export const ringRouter = Router();
 
@@ -113,10 +114,15 @@ ringRouter.post(
       assertRawRingEvent(parsedBody);
       const event = normalizeRingEvent(parsedBody);
       await getRingEventStore().save(event, parsedBody);
-      // TODO: hand `event` off to the classification/scoring pipeline
-      // (bedrock/multimodalContext.ts -> scoring.ts -> channel dispatch)
-      // once it is wired up.
       res.status(202).json({ status: "accepted", eventId: event.id });
+
+      // Runs after the response so a slow Bedrock call never holds up the
+      // webhook ack. Errors are logged rather than surfaced to Ring, which
+      // has no way to act on them and would otherwise retry a webhook that
+      // was already accepted and stored.
+      runPipeline(event).catch((err) => {
+        console.error(`[orchestration] pipeline failed for event ${event.id}:`, err);
+      });
     } catch (err) {
       if (err instanceof RingWebhookValidationError) {
         res.status(400).json({ error: err.message });

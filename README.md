@@ -13,7 +13,7 @@ Prism connects Ring's real-time event stream to an AI context layer (Bedrock mul
 ## Structure
 
 - `packages/prism-alert-engine` — Ring-agnostic core: a Bedrock classification wrapper, the Signal Score engine, and channel encoders (haptic/visual/push). Standalone and MIT-licensed; any doorbell or camera vendor could adopt it directly.
-- `packages/prism-backend` — Ring OAuth + webhook ingestion, Bedrock/AgentCore orchestration, Postgres + pgvector event store.
+- `packages/prism-backend` — Ring OAuth + webhook ingestion, Bedrock classification + orchestration, Postgres + pgvector event store.
 - `apps/prism-companion-web` — the React/PWA companion app that receives alerts in real time.
 - `infra/` — AWS config and a local docker-compose setup (Postgres + backend + web).
 - `docs/` — architecture and accessibility notes.
@@ -28,7 +28,7 @@ npm run dev:backend && npm run dev:web
 
 ## Status
 
-Ring OAuth account linking, HMAC-verified webhook ingestion (normalized into a shared event schema and persisted), and the Signal Score engine are built and tested. Bedrock classification, real-time delivery to the companion app, and repeat-visitor memory are still in progress.
+Ring OAuth account linking, HMAC-verified webhook ingestion (normalized into a shared event schema and persisted), and the Signal Score engine are built and tested. Bedrock classification is wired end to end from the webhook receiver through the Signal Score engine to a channel decision. Real-time delivery to the companion app and repeat-visitor memory are still in progress.
 
 ## License
 

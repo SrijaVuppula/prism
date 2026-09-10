@@ -1,0 +1,101 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { PrismEvent } from "prism-alert-engine";
+
+vi.mock("../../src/bedrock/multimodalContext", () => ({
+  classifySnapshot: vi.fn(),
+}));
+
+import { classifySnapshot } from "../../src/bedrock/multimodalContext";
+import { DEFAULT_ORCHESTRATION_CONTEXT, runPipeline } from "../../src/bedrock/agentOrchestration";
+
+function baseEvent(occurredAt: string): PrismEvent {
+  return {
+    id: "evt_1",
+    occurredAt,
+    snapshotUrl: "https://cdn.ring.com/snap/evt_1.jpg",
+  };
+}
+
+beforeEach(() => {
+  vi.mocked(classifySnapshot).mockReset();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+describe("runPipeline", () => {
+  it("classifies, scores, and produces all three channel payloads for an Urgent event", async () => {
+    vi.mocked(classifySnapshot).mockResolvedValue({
+      category: "person",
+      description: "A person at the door late at night.",
+      confidence: 0.95,
+    });
+
+    // 23:00 UTC -- off-hours, so scoring should land Urgent for a
+    // high-confidence, unknown, non-repeat person detection.
+    const result = await runPipeline(baseEvent("2026-01-01T23:00:00.000Z"));
+
+    expect(result.event.classification?.category).toBe("person");
+    expect(result.event.scoring?.signalClass).toBe("Urgent");
+    expect(result.channels.visual).toBeDefined();
+    expect(result.channels.haptic).toBeDefined();
+    expect(result.channels.push).toBeDefined();
+    expect(result.channels.visual?.description).toBe("A person at the door late at night.");
+    expect(result.channels.push?.data.eventId).toBe("evt_1");
+  });
+
+  it("produces only a visual payload for a Routine event", async () => {
+    vi.mocked(classifySnapshot).mockResolvedValue({
+      category: "animal",
+      description: "A squirrel in the yard.",
+      confidence: 0.8,
+    });
+
+    // 14:00 UTC -- daytime, animal base weight is low, so this should stay Routine.
+    const result = await runPipeline(baseEvent("2026-01-01T14:00:00.000Z"));
+
+    expect(result.event.scoring?.signalClass).toBe("Routine");
+    expect(result.channels.visual).toBeDefined();
+    expect(result.channels.haptic).toBeUndefined();
+    expect(result.channels.push).toBeUndefined();
+  });
+
+  it("de-escalates toward Routine for a known, repeat visitor even at high confidence", async () => {
+    vi.mocked(classifySnapshot).mockResolvedValue({
+      category: "person",
+      description: "The same person as earlier today.",
+      confidence: 0.9,
+    });
+
+    const result = await runPipeline(baseEvent("2026-01-01T14:00:00.000Z"), {
+      isKnownVisitor: true,
+      repeatVisitCount: 3,
+      isQuietHours: false,
+    });
+
+    expect(result.event.scoring?.signalClass).toBe("Routine");
+    expect(result.channels.haptic).toBeUndefined();
+  });
+
+  it("uses UTC hours to derive hourOfDay, independent of the process's local timezone", async () => {
+    vi.mocked(classifySnapshot).mockResolvedValue({
+      category: "person",
+      description: "A person at the door.",
+      confidence: 0.9,
+    });
+
+    await runPipeline(baseEvent("2026-01-01T02:30:00.000Z"), DEFAULT_ORCHESTRATION_CONTEXT);
+
+    // computeSignalScore only receives the derived ScoringInput, not the raw
+    // timestamp, so we assert indirectly: 02:30 UTC is off-hours and should
+    // therefore score Urgent for an unknown person at default confidence.
+    const result = await runPipeline(baseEvent("2026-01-01T02:30:00.000Z"), DEFAULT_ORCHESTRATION_CONTEXT);
+    expect(result.event.scoring?.signalClass).toBe("Urgent");
+  });
+
+  it("propagates a classification failure instead of swallowing it", async () => {
+    vi.mocked(classifySnapshot).mockRejectedValue(new Error("bedrock unavailable"));
+    await expect(runPipeline(baseEvent("2026-01-01T14:00:00.000Z"))).rejects.toThrow("bedrock unavailable");
+  });
+});

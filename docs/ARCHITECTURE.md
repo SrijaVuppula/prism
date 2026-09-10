@@ -15,7 +15,7 @@ prism-backend :: bedrock/multimodalContext.ts
 prism-alert-engine :: scoring.ts
    │  Signal Score (0-100) + Signal Class (Routine/Notable/Urgent)
    ▼
-prism-backend :: agentOrchestration.ts (AgentCore/Strands)
+prism-backend :: agentOrchestration.ts
    │  chains: normalize → classify → score → channel decision → dispatch
    ▼
 prism-alert-engine :: channels/{haptic,visual,push}.ts
@@ -39,4 +39,11 @@ Bedrock embedding model → vector per event description → `pgvector` similari
 
 ## Latency notes
 
-_(not yet measured — will note Bedrock round-trip and webhook-to-alert end-to-end latency here once instrumented)_
+Both stages are timed and logged on every call:
+- `bedrock/multimodalContext.ts` logs the Bedrock InvokeModel round-trip.
+- `bedrock/agentOrchestration.ts` logs the full event -> classification ->
+  score -> channel-decision latency.
+
+`prism-backend/eval/runEvaluation.ts` reports mean/p50/p95/max latency and
+classification accuracy across a labeled event set (see
+`eval/fixtures/README.md` for how to populate it).

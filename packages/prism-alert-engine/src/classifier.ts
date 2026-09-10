@@ -2,10 +2,9 @@
 // Kept provider-agnostic at the interface level: swap the implementation without
 // touching scoring.ts or the channel encoders.
 //
-// TODO: implement the real Bedrock call in prism-backend and have it satisfy
-// this interface, or move the actual SDK call here if you want the engine
-// package to be fully self-contained. Left as an interface for now since this
-// package should stay free of AWS-credential concerns.
+// The real implementation lives in prism-backend/src/bedrock/multimodalContext.ts
+// (BedrockClassifier), which satisfies this interface. Kept as an interface
+// here so this package stays free of AWS-credential concerns.
 
 import { ClassificationResult } from "./types";
 
