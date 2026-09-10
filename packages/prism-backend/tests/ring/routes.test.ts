@@ -50,7 +50,11 @@ beforeEach(() => {
   for (const [key, value] of Object.entries(ENV)) {
     process.env[key] = value;
   }
-  vi.mocked(runPipeline).mockReset();
+  // Must resolve (not just be reset) since routes.ts calls
+  // runPipeline(event).catch(...) synchronously after the response --
+  // an unresolved/undefined return there would throw before the second
+  // request in this file even gets a chance to run.
+  vi.mocked(runPipeline).mockReset().mockResolvedValue({} as never);
   ringEventStoreMock = { save: vi.fn().mockResolvedValue(undefined), get: vi.fn() };
   vi.mocked(getRingEventStore).mockReturnValue(ringEventStoreMock as never);
 });
