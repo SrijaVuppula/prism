@@ -33,6 +33,29 @@ apps/prism-companion-web
 - `prism-backend` owns every Ring- and Bedrock-specific call, so there's one place to look to confirm the Ring API is actually called at runtime.
 - `prism-companion-web` is the only piece you need to open in a browser to see and feel the result.
 
+## Orchestration design
+
+`bedrock/agentOrchestration.ts` is a plain, linear async chain (classify ->
+score -> channel decision), not an AgentCore or Strands agent. That's a
+deliberate choice, made after looking at both:
+
+- There's no multi-step tool-calling or planning in this pipeline -- every
+  event goes through the same four steps in the same order. An agent
+  framework earns its complexity when a step needs the model to choose
+  between actions; nothing here does that yet.
+- Strands Agents (AWS's open-source agent SDK) is Python-first, with no
+  mature JS/TypeScript SDK. Using it here would mean standing up a separate
+  Python service the Node backend calls over the network -- a real
+  architecture change, not a library swap.
+- Bedrock AgentCore is a hosted runtime for deploying and operating agents,
+  not an npm package. Adopting it means provisioning actual AWS
+  infrastructure beyond what a single Bedrock InvokeModel call needs.
+
+Revisit this if a later step needs the model to choose between actions --
+e.g. deciding whether to run a repeat-visitor lookup before or after
+classification -- rather than follow this fixed order. That's the point at
+which an agent framework would earn its complexity here.
+
 ## Repeat-visitor memory
 
 Bedrock embedding model → vector per event description → `pgvector` similarity search against the current session window → de-escalate Signal Class on a high-similarity match. Genuine vector search, not keyword/hash matching.
