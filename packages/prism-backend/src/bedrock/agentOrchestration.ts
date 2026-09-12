@@ -7,8 +7,13 @@
 // indirection without buying anything yet. Revisit if a later step needs
 // the model to choose between actions rather than follow this fixed order.
 //
-// Dispatch ends at producing the channel payloads -- WebSocket delivery to
-// the companion app (api/websocket.ts) isn't built yet.
+// Dispatch fans the channel payloads out over two independent paths: a
+// WebSocket broadcast to any companion app connected right now
+// (api/websocket.ts), and -- when the Signal Class calls for it -- Web Push
+// so an alert still lands when the app isn't in focus (push/dispatchPush.ts).
+// Both are best-effort: a delivery failure is logged, not thrown, so it
+// never turns a successfully classified and scored event into a rejected
+// pipeline promise.
 
 import {
   buildContextCard,
@@ -23,6 +28,8 @@ import {
   type SignalClass,
 } from "prism-alert-engine";
 import { classifySnapshot } from "./multimodalContext";
+import { broadcastEvent } from "../api/websocket";
+import { dispatchPushNotifications } from "../push/dispatchPush";
 
 /**
  * Context inputs to the Signal Score engine that this pipeline cannot yet
@@ -86,6 +93,29 @@ function decideChannels(scoredEvent: PrismEvent, scoring: ScoringResult): Channe
   return channels;
 }
 
+/**
+ * Pushes the scored event to connected companion clients over WebSocket and,
+ * when the channel decision calls for it, dispatches Web Push. Both are
+ * best-effort -- a failure here is logged and swallowed rather than
+ * rethrown, since the classification and scoring already succeeded and
+ * shouldn't be reported as a pipeline failure just because delivery hiccuped.
+ */
+async function dispatch(scoredEvent: PrismEvent, channels: ChannelPayloads): Promise<void> {
+  try {
+    broadcastEvent({ type: "prism-event", event: scoredEvent, channels });
+  } catch (err) {
+    console.error(`[orchestration] WebSocket broadcast failed for event ${scoredEvent.id}:`, err);
+  }
+
+  if (channels.push) {
+    try {
+      await dispatchPushNotifications(channels.push);
+    } catch (err) {
+      console.error(`[orchestration] push dispatch failed for event ${scoredEvent.id}:`, err);
+    }
+  }
+}
+
 export async function runPipeline(
   event: PrismEvent,
   context: OrchestrationContext = DEFAULT_ORCHESTRATION_CONTEXT,
@@ -110,11 +140,14 @@ export async function runPipeline(
   console.log(
     `[orchestration] event=${event.id} category=${classification.category} ` +
       `signalScore=${scoring.signalScore} signalClass=${scoring.signalClass} ` +
-      `latencyMs=${Date.now() - startedAt}`,
+      `classifyLatencyMs=${Date.now() - startedAt}`,
   );
 
-  // TODO: dispatch `channels` to the companion app once WebSocket delivery
-  // (../api/websocket.ts) is built. Ends here for now, producing the payload.
+  await dispatch(scoredEvent, channels);
+
+  console.log(
+    `[orchestration] event=${event.id} delivered totalLatencyMs=${Date.now() - startedAt}`,
+  );
 
   return { event: scoredEvent, channels };
 }

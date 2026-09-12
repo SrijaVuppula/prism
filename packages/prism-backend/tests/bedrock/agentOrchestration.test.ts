@@ -4,8 +4,16 @@ import type { PrismEvent } from "prism-alert-engine";
 vi.mock("../../src/bedrock/multimodalContext", () => ({
   classifySnapshot: vi.fn(),
 }));
+vi.mock("../../src/api/websocket", () => ({
+  broadcastEvent: vi.fn(),
+}));
+vi.mock("../../src/push/dispatchPush", () => ({
+  dispatchPushNotifications: vi.fn(),
+}));
 
 import { classifySnapshot } from "../../src/bedrock/multimodalContext";
+import { broadcastEvent } from "../../src/api/websocket";
+import { dispatchPushNotifications } from "../../src/push/dispatchPush";
 import { DEFAULT_ORCHESTRATION_CONTEXT, runPipeline } from "../../src/bedrock/agentOrchestration";
 
 function baseEvent(occurredAt: string): PrismEvent {
@@ -18,6 +26,8 @@ function baseEvent(occurredAt: string): PrismEvent {
 
 beforeEach(() => {
   vi.mocked(classifySnapshot).mockReset();
+  vi.mocked(broadcastEvent).mockReset();
+  vi.mocked(dispatchPushNotifications).mockReset().mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -97,5 +107,51 @@ describe("runPipeline", () => {
   it("propagates a classification failure instead of swallowing it", async () => {
     vi.mocked(classifySnapshot).mockRejectedValue(new Error("bedrock unavailable"));
     await expect(runPipeline(baseEvent("2026-01-01T14:00:00.000Z"))).rejects.toThrow("bedrock unavailable");
+  });
+
+  it("broadcasts the scored event over WebSocket and dispatches push for an Urgent event", async () => {
+    vi.mocked(classifySnapshot).mockResolvedValue({
+      category: "person",
+      description: "A person at the door late at night.",
+      confidence: 0.95,
+    });
+
+    const result = await runPipeline(baseEvent("2026-01-01T23:00:00.000Z"));
+
+    expect(broadcastEvent).toHaveBeenCalledTimes(1);
+    expect(broadcastEvent).toHaveBeenCalledWith({
+      type: "prism-event",
+      event: result.event,
+      channels: result.channels,
+    });
+    expect(dispatchPushNotifications).toHaveBeenCalledTimes(1);
+    expect(dispatchPushNotifications).toHaveBeenCalledWith(result.channels.push);
+  });
+
+  it("broadcasts over WebSocket but skips push dispatch for a Routine event", async () => {
+    vi.mocked(classifySnapshot).mockResolvedValue({
+      category: "animal",
+      description: "A squirrel in the yard.",
+      confidence: 0.8,
+    });
+
+    await runPipeline(baseEvent("2026-01-01T14:00:00.000Z"));
+
+    expect(broadcastEvent).toHaveBeenCalledTimes(1);
+    expect(dispatchPushNotifications).not.toHaveBeenCalled();
+  });
+
+  it("still returns the pipeline result when the WebSocket broadcast throws", async () => {
+    vi.mocked(classifySnapshot).mockResolvedValue({
+      category: "animal",
+      description: "A squirrel in the yard.",
+      confidence: 0.8,
+    });
+    vi.mocked(broadcastEvent).mockImplementation(() => {
+      throw new Error("no server attached");
+    });
+
+    const result = await runPipeline(baseEvent("2026-01-01T14:00:00.000Z"));
+    expect(result.event.scoring?.signalClass).toBe("Routine");
   });
 });

@@ -21,7 +21,8 @@ prism-backend :: agentOrchestration.ts
 prism-alert-engine :: channels/{haptic,visual,push}.ts
    │  pattern / card / push payload
    ▼
-prism-backend :: api/websocket.ts  →  WebSocket/SSE
+prism-backend :: api/websocket.ts  →  WebSocket broadcast
+   │  (Urgent events also fan out to prism-backend :: push/dispatchPush.ts → Web Push)
    ▼
 apps/prism-companion-web
    haptic vibration + visual context card + push notification
@@ -62,10 +63,17 @@ Bedrock embedding model → vector per event description → `pgvector` similari
 
 ## Latency notes
 
-Both stages are timed and logged on every call:
+Every stage is timed and logged on its own call:
 - `bedrock/multimodalContext.ts` logs the Bedrock InvokeModel round-trip.
-- `bedrock/agentOrchestration.ts` logs the full event -> classification ->
-  score -> channel-decision latency.
+- `bedrock/agentOrchestration.ts` logs classification+scoring latency, then a
+  second line for total latency (event received -> WebSocket broadcast sent
+  and, when applicable, push dispatched).
+- `api/websocket.ts` logs the WebSocket broadcast step itself -- this is the
+  number the sub-second real-time delivery target is measured against, since
+  it isolates the actual push-to-client step from the (much slower, and
+  separately logged) Bedrock classification call ahead of it.
+- `push/dispatchPush.ts` logs each Web Push dispatch: recipients, delivered,
+  and pruned (subscriptions the push service reported as expired).
 
 `prism-backend/eval/runEvaluation.ts` reports mean/p50/p95/max latency and
 classification accuracy across a labeled event set (see
