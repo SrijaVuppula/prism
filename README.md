@@ -28,7 +28,7 @@ npm run dev:backend && npm run dev:web
 
 ## Status
 
-Ring OAuth account linking, HMAC-verified webhook ingestion (normalized into a shared event schema and persisted), and the Signal Score engine are built and tested. Bedrock classification is wired end to end from the webhook receiver through the Signal Score engine to a channel decision. Real-time delivery is live: a WebSocket server broadcasts scored events to the companion web app, and Web Push notifications reach subscribed devices even when the app isn't in focus. The companion app itself renders the visual context card and triggers the haptic pattern for each alert. Repeat-visitor memory is still in progress.
+Ring OAuth account linking, HMAC-verified webhook ingestion (normalized into a shared event schema and persisted), and the Signal Score engine are built and tested. Bedrock classification is wired end to end from the webhook receiver through the Signal Score engine to a channel decision. Real-time delivery is live: a WebSocket server broadcasts scored events to the companion web app, and Web Push notifications reach subscribed devices even when the app isn't in focus. Measured WebSocket delivery latency (`npm run measure-delivery-latency`) is sub-millisecond locally -- see `docs/ARCHITECTURE.md` for the methodology and numbers. The companion app itself renders the visual context card and triggers the haptic pattern for each alert. Repeat-visitor memory is still in progress.
 
 ## License
 

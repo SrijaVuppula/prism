@@ -75,6 +75,30 @@ Every stage is timed and logged on its own call:
 - `push/dispatchPush.ts` logs each Web Push dispatch: recipients, delivered,
   and pruned (subscriptions the push service reported as expired).
 
+### Measured WebSocket delivery latency
+
+`scripts/measure-delivery-latency.ts` (`npm run measure-delivery-latency`)
+drives the real `attachWebSocketServer`/`broadcastEvent` code against real
+`ws` client connections on a real HTTP server -- no mocks -- and times each
+delivery from the `broadcastEvent()` call to the client's `message` event.
+It deliberately does not call Bedrock: this isolates the delivery step the
+sub-second target is about from classification latency, which is a
+separate, already-logged number (see above) dominated by a network call to
+Bedrock this step never makes.
+
+Latest local run, 1,000 synthetic events x 5 connected clients (5,000
+measured deliveries):
+
+| mean | p50 | p95 | max |
+| --- | --- | --- | --- |
+| 0.068 ms | 0.061 ms | 0.100 ms | 1.334 ms |
+
+Well under the sub-second target. This was run on localhost in a single
+process, so it measures the delivery code path itself rather than
+real-world network conditions between a deployed backend and a phone on
+cellular/Wi-Fi -- re-run `npm run measure-delivery-latency` against a
+deployed backend for a production-representative number.
+
 `prism-backend/eval/runEvaluation.ts` reports mean/p50/p95/max latency and
 classification accuracy across a labeled event set (see
 `eval/fixtures/README.md` for how to populate it).
