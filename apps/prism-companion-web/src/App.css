@@ -177,3 +177,156 @@ h2 {
   font-size: 1.1rem;
   margin: 0 0 8px;
 }
+
+.app__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.feedback-buttons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.feedback-buttons__button {
+  padding: 6px 12px;
+  font-size: 0.85rem;
+}
+
+.feedback-buttons__button[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.feedback-buttons__status {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.tag-visitor__open {
+  align-self: flex-start;
+  font-size: 0.85rem;
+  padding: 6px 12px;
+}
+
+.tag-visitor {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.tag-visitor label {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.tag-visitor input[type="text"] {
+  font: inherit;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+}
+
+.tag-visitor__status {
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.tag-visitor__status--error {
+  color: var(--urgent);
+}
+
+.settings-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.settings-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.settings-panel__header h2 {
+  margin: 0;
+}
+
+.settings-panel__section {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.settings-panel__section legend {
+  padding: 0 6px;
+  font-weight: 700;
+}
+
+.settings-panel__checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.95rem;
+}
+
+.settings-panel__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.9rem;
+}
+
+.settings-panel__row input[type="number"] {
+  width: 72px;
+}
+
+.settings-panel__row input[type="text"] {
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-panel input {
+  font: inherit;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+}
+
+.settings-panel__hint,
+.settings-panel__disclosure {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.settings-panel__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.settings-panel__save-status {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}

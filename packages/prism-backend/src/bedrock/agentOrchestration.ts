@@ -14,31 +14,48 @@
 // Both are best-effort: a delivery failure is logged, not thrown, so it
 // never turns a successfully classified and scored event into a rejected
 // pipeline promise.
+//
+// Personalization is layered on the same way: preferences, repeat-visitor
+// memory, and the feedback-driven scoring weights are each best-effort --
+// a lookup failure logs a warning and falls back to the conservative
+// default rather than ever blocking alert delivery on Postgres being
+// reachable.
 
 import {
   buildContextCard,
   buildPushPayload,
   computeSignalScore,
+  DEFAULT_SIGNAL_SCORE_WEIGHTS,
   encodeHapticPattern,
+  type ClassificationResult,
   type ContextCardPayload,
+  type HapticOverrides,
   type PrismEvent,
   type PushPayload,
   type ScoringInput,
   type ScoringResult,
   type SignalClass,
+  type SignalScoreWeights,
 } from "prism-alert-engine";
 import { classifySnapshot } from "./multimodalContext";
+import { resolveRepeatVisitor } from "./repeatVisitorMemory";
 import { broadcastEvent } from "../api/websocket";
 import { dispatchPushNotifications } from "../push/dispatchPush";
+import { resolveSignalScoreWeights } from "../feedback/weightAdjustment";
+import { DEFAULT_PREFERENCES, getPreferencesStore, type UserPreferences } from "../preferences/preferencesStore";
+import { isWithinQuietHours } from "../preferences/quietHours";
 
 /**
- * Context inputs to the Signal Score engine that this pipeline cannot yet
- * derive on its own:
- * - isKnownVisitor / repeatVisitCount depend on the repeat-visitor vector
- *   search (../db/vectorStore.ts), which is still a stub.
- * - isQuietHours depends on a per-user preference that doesn't exist yet.
- * Callers can pass real values once those exist; until then the pipeline
- * runs with the conservative defaults below (nothing de-escalated).
+ * Context inputs to the Signal Score engine that don't come from
+ * classification alone:
+ * - isKnownVisitor / repeatVisitCount come from repeat-visitor session
+ *   memory (repeatVisitorMemory.ts / ../db/vectorStore.ts).
+ * - isQuietHours comes from the household's preferences
+ *   (../preferences/preferencesStore.ts).
+ *
+ * Pass an explicit context to skip all of that and use fixed values instead
+ * (tests, the eval harness, or any caller that already knows better) --
+ * runPipeline() only resolves these for real when `context` is omitted.
  */
 export interface OrchestrationContext {
   isKnownVisitor: boolean;
@@ -83,14 +100,79 @@ function hourOfDay(occurredAt: string): number {
   return new Date(occurredAt).getUTCHours();
 }
 
-function decideChannels(scoredEvent: PrismEvent, scoring: ScoringResult): ChannelPayloads {
+function decideChannels(
+  scoredEvent: PrismEvent,
+  scoring: ScoringResult,
+  hapticOverrides: HapticOverrides = {},
+): ChannelPayloads {
   const channels: ChannelPayloads = {};
   for (const channel of CHANNELS_BY_SIGNAL_CLASS[scoring.signalClass]) {
     if (channel === "visual") channels.visual = buildContextCard(scoredEvent);
-    if (channel === "haptic") channels.haptic = encodeHapticPattern(scoring.signalClass);
+    if (channel === "haptic") {
+      channels.haptic = hapticOverrides[scoring.signalClass] ?? encodeHapticPattern(scoring.signalClass);
+    }
     if (channel === "push") channels.push = buildPushPayload(scoredEvent);
   }
   return channels;
+}
+
+/**
+ * Best-effort preference lookup: falls back to DEFAULT_PREFERENCES (no
+ * quiet hours, no haptic overrides, known-visitor tagging off) rather than
+ * ever letting a Postgres hiccup block classification/scoring/dispatch.
+ */
+async function resolvePreferences(eventId: string): Promise<UserPreferences> {
+  try {
+    return await getPreferencesStore().get();
+  } catch (err) {
+    console.error(`[orchestration] preferences lookup failed for event ${eventId}, using defaults:`, err);
+    return DEFAULT_PREFERENCES;
+  }
+}
+
+/**
+ * Best-effort scoring-weights lookup (hand-tuned defaults plus the
+ * feedback-derived per-category bias). Falls back to
+ * DEFAULT_SIGNAL_SCORE_WEIGHTS on any failure -- the feedback loop is a
+ * refinement, never a dependency of scoring working at all.
+ */
+async function resolveWeights(eventId: string): Promise<SignalScoreWeights> {
+  try {
+    return await resolveSignalScoreWeights();
+  } catch (err) {
+    console.error(`[orchestration] scoring-weight resolution failed for event ${eventId}, using defaults:`, err);
+    return DEFAULT_SIGNAL_SCORE_WEIGHTS;
+  }
+}
+
+/**
+ * Resolves the real OrchestrationContext for an event: quiet hours from
+ * preferences, plus repeat-visitor memory when the event has a deviceId to
+ * scope a session window to (see repeatVisitorMemory.ts). Best-effort --
+ * any failure here logs and falls back to DEFAULT_ORCHESTRATION_CONTEXT's
+ * values for whichever part failed.
+ */
+async function resolveOrchestrationContext(
+  event: PrismEvent,
+  classification: ClassificationResult,
+  preferences: UserPreferences,
+): Promise<{ context: OrchestrationContext; visitorGroupId?: string }> {
+  const isQuietHours = isWithinQuietHours(new Date(event.occurredAt), preferences.quietHours);
+
+  if (!event.deviceId) {
+    return { context: { isKnownVisitor: false, repeatVisitCount: 0, isQuietHours } };
+  }
+
+  try {
+    const memory = await resolveRepeatVisitor(event, classification, preferences.knownVisitorTaggingEnabled);
+    return {
+      context: { isKnownVisitor: memory.isKnownVisitor, repeatVisitCount: memory.repeatVisitCount, isQuietHours },
+      visitorGroupId: memory.visitorGroupId,
+    };
+  } catch (err) {
+    console.error(`[orchestration] repeat-visitor memory lookup failed for event ${event.id}, using defaults:`, err);
+    return { context: { isKnownVisitor: false, repeatVisitCount: 0, isQuietHours } };
+  }
 }
 
 /**
@@ -116,26 +198,36 @@ async function dispatch(scoredEvent: PrismEvent, channels: ChannelPayloads): Pro
   }
 }
 
-export async function runPipeline(
-  event: PrismEvent,
-  context: OrchestrationContext = DEFAULT_ORCHESTRATION_CONTEXT,
-): Promise<PipelineResult> {
+export async function runPipeline(event: PrismEvent, context?: OrchestrationContext): Promise<PipelineResult> {
   const startedAt = Date.now();
 
   const classification = await classifySnapshot(event.snapshotUrl);
+  const preferences = await resolvePreferences(event.id);
+
+  let resolvedContext: OrchestrationContext;
+  let visitorGroupId: string | undefined;
+  if (context) {
+    resolvedContext = context;
+  } else {
+    const resolved = await resolveOrchestrationContext(event, classification, preferences);
+    resolvedContext = resolved.context;
+    visitorGroupId = resolved.visitorGroupId;
+  }
+
+  const weights = await resolveWeights(event.id);
 
   const scoringInput: ScoringInput = {
     category: classification.category,
     confidence: classification.confidence,
     hourOfDay: hourOfDay(event.occurredAt),
-    isKnownVisitor: context.isKnownVisitor,
-    repeatVisitCount: context.repeatVisitCount,
-    isQuietHours: context.isQuietHours,
+    isKnownVisitor: resolvedContext.isKnownVisitor,
+    repeatVisitCount: resolvedContext.repeatVisitCount,
+    isQuietHours: resolvedContext.isQuietHours,
   };
-  const scoring = computeSignalScore(scoringInput);
+  const scoring = computeSignalScore(scoringInput, weights);
 
-  const scoredEvent: PrismEvent = { ...event, classification, scoring };
-  const channels = decideChannels(scoredEvent, scoring);
+  const scoredEvent: PrismEvent = { ...event, classification, scoring, visitorGroupId };
+  const channels = decideChannels(scoredEvent, scoring, preferences.hapticOverrides);
 
   console.log(
     `[orchestration] event=${event.id} category=${classification.category} ` +

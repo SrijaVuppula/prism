@@ -8,3 +8,4 @@ build/
 coverage/
 .aws/
 *.tsbuildinfo
+dist_verify/

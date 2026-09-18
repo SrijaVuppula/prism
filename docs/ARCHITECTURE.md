@@ -57,9 +57,38 @@ e.g. deciding whether to run a repeat-visitor lookup before or after
 classification -- rather than follow this fixed order. That's the point at
 which an agent framework would earn its complexity here.
 
+## Personalization without an account system
+
+There is no user/auth system anywhere in this codebase, and personalization
+doesn't add one as a prerequisite. `preferences/preferencesStore.ts` and
+`alert_feedback` both follow the same single-household shape already
+established by `push_subscriptions` and the Ring account-linking flow:
+preferences are one row, keyed by a constant `household_id` ("default")
+rather than a real user id, matching how every push subscription already
+receives every alert regardless of who's holding the phone.
+
+That constant is a call-site choice, not a schema one: `household_id` is a
+real column on `user_preferences`, not folded away, so swapping
+`DEFAULT_HOUSEHOLD_ID` for an authenticated user/household id later doesn't
+need a migration. Repeat-visitor memory and known-visitor tags are scoped to
+Ring `device_id` instead of a household at all, since a "session window" is
+inherently per-camera regardless of how many people are in the household.
+
 ## Repeat-visitor memory
 
 Bedrock embedding model → vector per event description → `pgvector` similarity search against the current session window → de-escalate Signal Class on a high-similarity match. Genuine vector search, not keyword/hash matching.
+
+**Session window**: a rolling time window (`SESSION_WINDOW_MINUTES`, default 45), scoped to a single Ring device. Two events count as the same visit when they occur on the same device within that window of each other, not on a fixed clock-aligned bucket -- the window slides forward with every new event. It resets independently per device: there is no cross-device or global session.
+
+**Pipeline**: `bedrock/repeatVisitorMemory.ts` runs after classification (it needs `classification.description` to embed) and before scoring. It embeds the description (`bedrock/embeddings.ts`), looks for the closest prior event on the same device within the window (`db/vectorStore.ts`'s `findSimilarEvent`, cosine similarity via pgvector's `<=>` operator, threshold `REPEAT_VISITOR_SIMILARITY_THRESHOLD`, default 0.85), and records this event's own embedding under whichever visitor group applies -- the matched group, or a freshly minted one -- so the chain keeps extending. `repeatVisitCount` (how many prior events are in that group within the window) always feeds into scoring; it doesn't persist any identity, just a same-session repetition count.
+
+**Known-visitor tagging is a separate, opt-in layer on top of this.** `isKnownVisitor` stays false regardless of repeatVisitCount unless the household has turned on known-visitor tagging in Settings *and* that specific visitor group has been tagged (`db/knownVisitorTagStore.ts`) -- see docs/ACCESSIBILITY.md's privacy note. This is why `scoring.ts` has always had `knownVisitor` and `repeatVisit` as two separate breakdown factors: they're independently derived, one automatic and identity-free, the other opt-in and persistent.
+
+**Personalization inputs**: `agentOrchestration.ts` resolves quiet hours and haptic overrides from `preferences/preferencesStore.ts`, and a feedback-derived scoring-weight bias from `feedback/weightAdjustment.ts` (see "Feedback loop" below), on every pipeline run. Each of these -- preferences, repeat-visitor memory, and scoring weights -- is best-effort: a lookup failure is logged and falls back to the conservative default rather than ever blocking alert delivery on Postgres being reachable.
+
+## Feedback loop
+
+Each `ContextCard` in the companion app offers a thumbs up/down on that alert's classification (`POST /alerts/:eventId/feedback`, stored in `alert_feedback`). `feedback/weightAdjustment.ts` aggregates up/down counts per category (minimum 3 votes before a category's weight moves at all) into a bounded bias (±15) on that category's `SignalScoreWeights.categoryBase`, cached for 60s so a burst of events doesn't mean a Postgres round trip per alert. The bias shows up as `breakdown.feedbackAdjustment` in `ScoringResult` whenever non-zero -- exactly as explainable as every hand-written factor, not an opaque model doing the adjusting.
 
 ## Latency notes
 

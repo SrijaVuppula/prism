@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PrismEvent } from "prism-alert-engine";
+import { DEFAULT_SIGNAL_SCORE_WEIGHTS } from "prism-alert-engine";
 
 vi.mock("../../src/bedrock/multimodalContext", () => ({
   classifySnapshot: vi.fn(),
@@ -10,10 +11,23 @@ vi.mock("../../src/api/websocket", () => ({
 vi.mock("../../src/push/dispatchPush", () => ({
   dispatchPushNotifications: vi.fn(),
 }));
+vi.mock("../../src/preferences/preferencesStore", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../src/preferences/preferencesStore")>();
+  return { ...actual, getPreferencesStore: vi.fn() };
+});
+vi.mock("../../src/feedback/weightAdjustment", () => ({
+  resolveSignalScoreWeights: vi.fn(),
+}));
+vi.mock("../../src/bedrock/repeatVisitorMemory", () => ({
+  resolveRepeatVisitor: vi.fn(),
+}));
 
 import { classifySnapshot } from "../../src/bedrock/multimodalContext";
 import { broadcastEvent } from "../../src/api/websocket";
 import { dispatchPushNotifications } from "../../src/push/dispatchPush";
+import { getPreferencesStore, DEFAULT_PREFERENCES } from "../../src/preferences/preferencesStore";
+import { resolveSignalScoreWeights } from "../../src/feedback/weightAdjustment";
+import { resolveRepeatVisitor } from "../../src/bedrock/repeatVisitorMemory";
 import { DEFAULT_ORCHESTRATION_CONTEXT, runPipeline } from "../../src/bedrock/agentOrchestration";
 
 function baseEvent(occurredAt: string): PrismEvent {
@@ -28,6 +42,14 @@ beforeEach(() => {
   vi.mocked(classifySnapshot).mockReset();
   vi.mocked(broadcastEvent).mockReset();
   vi.mocked(dispatchPushNotifications).mockReset().mockResolvedValue(undefined);
+  vi.mocked(getPreferencesStore).mockReset().mockReturnValue({
+    get: vi.fn().mockResolvedValue(DEFAULT_PREFERENCES),
+    save: vi.fn(),
+  } as never);
+  vi.mocked(resolveSignalScoreWeights).mockReset().mockResolvedValue(DEFAULT_SIGNAL_SCORE_WEIGHTS);
+  vi.mocked(resolveRepeatVisitor)
+    .mockReset()
+    .mockResolvedValue({ repeatVisitCount: 0, isKnownVisitor: false, visitorGroupId: "group_1" });
 });
 
 afterEach(() => {
@@ -153,5 +175,65 @@ describe("runPipeline", () => {
 
     const result = await runPipeline(baseEvent("2026-01-01T14:00:00.000Z"));
     expect(result.event.scoring?.signalClass).toBe("Routine");
+  });
+
+  it("does not look up repeat-visitor memory when the event has no deviceId", async () => {
+    vi.mocked(classifySnapshot).mockResolvedValue({
+      category: "person",
+      description: "A person at the door.",
+      confidence: 0.9,
+    });
+
+    await runPipeline(baseEvent("2026-01-01T14:00:00.000Z"));
+
+    expect(resolveRepeatVisitor).not.toHaveBeenCalled();
+  });
+
+  it("resolves real repeat-visitor context and known-visitor tagging when the event has a deviceId", async () => {
+    vi.mocked(classifySnapshot).mockResolvedValue({
+      category: "person",
+      description: "The mail carrier again.",
+      confidence: 0.9,
+    });
+    vi.mocked(resolveRepeatVisitor).mockResolvedValue({
+      repeatVisitCount: 2,
+      isKnownVisitor: true,
+      visitorGroupId: "group_mail_carrier",
+    });
+
+    const result = await runPipeline({ ...baseEvent("2026-01-01T14:00:00.000Z"), deviceId: "dev_1" });
+
+    expect(resolveRepeatVisitor).toHaveBeenCalledTimes(1);
+    expect(result.event.visitorGroupId).toBe("group_mail_carrier");
+    expect(result.event.scoring?.signalClass).toBe("Routine");
+  });
+
+  it("applies per-signal-class haptic overrides from preferences", async () => {
+    vi.mocked(classifySnapshot).mockResolvedValue({
+      category: "person",
+      description: "A person at the door late at night.",
+      confidence: 0.95,
+    });
+    vi.mocked(getPreferencesStore).mockReturnValue({
+      get: vi.fn().mockResolvedValue({ ...DEFAULT_PREFERENCES, hapticOverrides: { Urgent: [1, 2, 3] } }),
+      save: vi.fn(),
+    } as never);
+
+    const result = await runPipeline(baseEvent("2026-01-01T23:00:00.000Z"));
+
+    expect(result.channels.haptic).toEqual([1, 2, 3]);
+  });
+
+  it("falls back to default scoring weights when the feedback loop fails", async () => {
+    vi.mocked(classifySnapshot).mockResolvedValue({
+      category: "person",
+      description: "A person at the door late at night.",
+      confidence: 0.95,
+    });
+    vi.mocked(resolveSignalScoreWeights).mockRejectedValue(new Error("db unavailable"));
+
+    const result = await runPipeline(baseEvent("2026-01-01T23:00:00.000Z"));
+
+    expect(result.event.scoring?.signalClass).toBe("Urgent");
   });
 });

@@ -27,3 +27,31 @@ export function getBedrockConfig(): BedrockConfig {
     modelId: requireEnv("BEDROCK_MODEL_ID"),
   };
 }
+
+export interface BedrockEmbeddingConfig {
+  region: string;
+  /** Bedrock embedding model id, e.g. an `amazon.titan-embed-text-*` id. */
+  modelId: string;
+  /**
+   * Output vector dimensionality. Must match the `vector(N)` column width
+   * in db/migrations/0005_event_embeddings.sql -- changing the embedding
+   * model to one with a different dimension needs a migration, not just an
+   * env change.
+   */
+  dimensions: number;
+}
+
+const DEFAULT_EMBEDDING_DIMENSIONS = 1024;
+
+export function getBedrockEmbeddingConfig(): BedrockEmbeddingConfig {
+  const dimensionsRaw = process.env.BEDROCK_EMBEDDING_DIMENSIONS;
+  const dimensions = dimensionsRaw ? Number(dimensionsRaw) : DEFAULT_EMBEDDING_DIMENSIONS;
+  if (!Number.isInteger(dimensions) || dimensions <= 0) {
+    throw new Error(`BEDROCK_EMBEDDING_DIMENSIONS must be a positive integer, got: ${dimensionsRaw}`);
+  }
+  return {
+    region: requireEnv("BEDROCK_REGION"),
+    modelId: requireEnv("BEDROCK_EMBEDDING_MODEL_ID"),
+    dimensions,
+  };
+}

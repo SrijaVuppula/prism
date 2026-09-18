@@ -36,6 +36,22 @@ export interface PrismEvent {
   snapshotUrl: string;
   classification?: ClassificationResult;
   scoring?: ScoringResult;
+  /**
+   * Identifier of the physical device/camera this event came from, when the
+   * source integration has one (e.g. a Ring device id). Optional and
+   * generic on purpose -- this package stays camera/vendor-agnostic -- but
+   * it's what repeat-visitor session memory in prism-backend scopes its
+   * lookups to, since "session window" is inherently per-device.
+   */
+  deviceId?: string;
+  /**
+   * Stable id for the cluster of visually-similar events this one has been
+   * grouped with by repeat-visitor memory (prism-backend/src/db/vectorStore.ts).
+   * Undefined until that lookup has run. Carried on the event (rather than
+   * only on internal orchestration state) so the companion app can offer an
+   * opt-in "tag this visitor" action against a stable id.
+   */
+  visitorGroupId?: string;
 }
 
 /** Payload sent to the companion app's visual context card. */
@@ -45,6 +61,15 @@ export interface ContextCardPayload {
   signalClass: SignalClass;
   timestamp: string;
 }
+
+/**
+ * Per-Signal-Class haptic pattern override (Web Vibration API on/off pairs,
+ * ms). Partial -- a signal class with no override falls back to
+ * encodeHapticPattern()'s default from channels/haptic.ts. Lives here
+ * (rather than only in prism-backend) since the companion app also needs
+ * the shape to render/edit its settings UI without importing prism-backend.
+ */
+export type HapticOverrides = Partial<Record<SignalClass, number[]>>;
 
 /** Minimal push notification payload (Web Push / FCM agnostic). */
 export interface PushPayload {

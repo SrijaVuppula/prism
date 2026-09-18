@@ -119,5 +119,9 @@ export function normalizeRingEvent(raw: unknown): PrismEvent {
     id: raw.event_id,
     occurredAt: new Date(raw.created_at).toISOString(),
     snapshotUrl: raw.snapshot_url,
+    // Populated so repeat-visitor session memory (db/vectorStore.ts) can
+    // scope its rolling window to this specific device rather than mixing
+    // events from every Ring device on the account into one session.
+    deviceId: raw.device.id,
   };
 }

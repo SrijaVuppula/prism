@@ -8,6 +8,7 @@
 - [x] No information conveyed by color alone (Signal Class also shown as text/icon) — `SignalBadge.tsx` always pairs an icon and the class name as text
 - [x] Focus indicators visible on all interactive elements — `:focus-visible` outline in `App.css`, applied globally rather than per-component
 - [x] Motion/vibration patterns don't rely solely on timing precision a user must catch — patterns are on/off pulses meant to be felt, not measured; see the table below
+- [x] Feedback and known-visitor-tagging controls follow the same icon+text and semantic-markup conventions as the rest of the app — `FeedbackButtons.tsx` pairs an icon with text and exposes vote state via `aria-pressed`; `TagVisitorControl.tsx` is a real `<form>`/`<label>`/`<input>`, not a browser `prompt()`
 - [ ] Color contrast ≥ 4.5:1 for text, ≥ 3:1 for UI components (context card, Signal Class badge) — dark theme picked for contrast but not measured against the AA thresholds yet
 - [ ] All interactive elements reachable and operable via keyboard alone — native `<button>` elements throughout, but not manually walked end to end yet
 - [ ] Automated axe-core pass with zero critical/serious violations — not run yet; no axe-core dependency has been added to the companion app
@@ -32,3 +33,5 @@ context card and push notification still carry the alert there.
 ## Known-visitor tagging — privacy note
 
 Opt-in only, disclosed clearly in the README, local-only storage — never uploaded or shared.
+
+Implementation: off by default (`user_preferences.known_visitor_tagging_enabled`). The companion app's Settings panel (`SettingsPanel.tsx`) states the disclosure above inline next to the toggle. Tags (`known_visitor_tags`) live only in this household's own Postgres database; nothing about a tagged visitor is sent anywhere else, and no cloud recognition service is involved -- matching is pgvector similarity search against this household's own recent events. `POST /visitors/:visitorGroupId/tag` refuses to tag anything (403) while the preference is off, so tagging can't happen without having gone through the disclosure first.

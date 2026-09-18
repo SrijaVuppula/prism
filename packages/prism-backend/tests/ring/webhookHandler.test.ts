@@ -60,6 +60,7 @@ describe("normalizeRingEvent", () => {
         id: "evt_123",
         occurredAt: "2026-01-01T12:00:00.000Z",
         snapshotUrl: base.snapshot_url,
+        deviceId: base.device.id,
       });
     },
   );

@@ -4,7 +4,7 @@
 // that have no place in a browser bundle; prism-alert-engine is the one
 // package deliberately kept safe to share between both.
 
-import type { ContextCardPayload, PrismEvent, PushPayload } from "prism-alert-engine";
+import type { ContextCardPayload, HapticOverrides, PrismEvent, PushPayload } from "prism-alert-engine";
 
 export interface ChannelPayloads {
   haptic?: number[];
@@ -16,4 +16,20 @@ export interface CompanionEventMessage {
   type: "prism-event";
   event: PrismEvent;
   channels: ChannelPayloads;
+}
+
+// Preference shapes re-declared here rather than imported from
+// prism-backend, for the same reason CompanionEventMessage is above:
+// prism-backend pulls in Node-only dependencies with no place in a browser
+// bundle. Kept in sync by hand with prism-backend/src/preferences/preferencesStore.ts.
+export interface QuietHours {
+  enabled: boolean;
+  startHourUtc: number;
+  endHourUtc: number;
+}
+
+export interface UserPreferences {
+  hapticOverrides: HapticOverrides;
+  quietHours: QuietHours;
+  knownVisitorTaggingEnabled: boolean;
 }

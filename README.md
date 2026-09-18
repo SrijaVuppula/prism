@@ -26,9 +26,17 @@ docker compose -f infra/docker-compose.yml up -d
 npm run dev:backend && npm run dev:web
 ```
 
+## Personalization and privacy
+
+Prism learns a household's preferences without any account system: quiet hours, per-Signal-Class haptic pattern overrides, and thumbs up/down feedback on each alert's classification (which gradually adjusts the Signal Score's category weights -- see `docs/ARCHITECTURE.md`) are all editable from the companion app's Settings panel.
+
+Known-visitor tagging is a separate, **strictly opt-in** feature, off by default. When a household turns it on, it can label a repeat visitor (e.g. "Mail carrier") so Prism de-escalates future alerts from that same visitor. Tags are matched using on-device/on-backend vector similarity, stored only in this household's own Postgres database, and are never uploaded, shared, or sent to any third party. Turning the feature off stops new tagging immediately; it does not delete tags already saved.
+
 ## Status
 
-Ring OAuth account linking, HMAC-verified webhook ingestion (normalized into a shared event schema and persisted), and the Signal Score engine are built and tested. Bedrock classification is wired end to end from the webhook receiver through the Signal Score engine to a channel decision. Real-time delivery is live: a WebSocket server broadcasts scored events to the companion web app, and Web Push notifications reach subscribed devices even when the app isn't in focus. Measured WebSocket delivery latency (`npm run measure-delivery-latency`) is sub-millisecond locally -- see `docs/ARCHITECTURE.md` for the methodology and numbers. The companion app itself renders the visual context card and triggers the haptic pattern for each alert. Repeat-visitor memory is still in progress.
+Ring OAuth account linking, HMAC-verified webhook ingestion (normalized into a shared event schema and persisted), and the Signal Score engine are built and tested. Bedrock classification is wired end to end from the webhook receiver through the Signal Score engine to a channel decision. Real-time delivery is live: a WebSocket server broadcasts scored events to the companion web app, and Web Push notifications reach subscribed devices even when the app isn't in focus. Measured WebSocket delivery latency (`npm run measure-delivery-latency`) is sub-millisecond locally -- see `docs/ARCHITECTURE.md` for the methodology and numbers. The companion app itself renders the visual context card and triggers the haptic pattern for each alert.
+
+Personalization and session memory are also built and tested: repeat-visitor memory (Bedrock embeddings + pgvector similarity search, scoped to a rolling per-device session window), per-household preferences (quiet hours, haptic overrides, the known-visitor-tagging opt-in), and a feedback loop that adjusts Signal Score category weights from accumulated thumbs up/down votes.
 
 ## License
 

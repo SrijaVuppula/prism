@@ -1,10 +1,14 @@
 // Entry point. Wires up: webhook receiver, WebSocket server, push
-// subscription endpoints, and the orchestration pipeline.
+// subscription endpoints, preferences/known-visitor-tagging/feedback
+// endpoints, and the orchestration pipeline.
 
 import { createServer } from "node:http";
 import express from "express";
 import { ringRouter } from "./ring/routes";
 import { pushRouter } from "./push/routes";
+import { preferencesRouter } from "./preferences/routes";
+import { visitorsRouter } from "./visitors/routes";
+import { feedbackRouter } from "./feedback/routes";
 import { attachWebSocketServer } from "./api/websocket";
 
 const app = express();
@@ -16,6 +20,9 @@ app.get("/health", (_req, res) => {
 
 app.use(ringRouter);
 app.use(pushRouter);
+app.use(preferencesRouter);
+app.use(visitorsRouter);
+app.use(feedbackRouter);
 
 // The WebSocket server upgrades HTTP connections on this same server (see
 // api/websocket.ts), so it needs the underlying http.Server rather than the
