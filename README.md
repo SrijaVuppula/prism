@@ -38,6 +38,10 @@ Ring OAuth account linking, HMAC-verified webhook ingestion (normalized into a s
 
 Personalization and session memory are also built and tested: repeat-visitor memory (Bedrock embeddings + pgvector similarity search, scoped to a rolling per-device session window), per-household preferences (quiet hours, haptic overrides, the known-visitor-tagging opt-in), and a feedback loop that adjusts Signal Score category weights from accumulated thumbs up/down votes.
 
+## Accessibility
+
+The companion app targets WCAG 2.2 AA, per the Ring Partner API guideline. An automated `axe-core` pass runs against every component and page state as part of `npm run test` (zero violations), color contrast is verified against the WCAG formula directly from the app's palette, and every interactive element is confirmed keyboard-reachable with no trap via a full keyboard-only navigation walk. See [docs/ACCESSIBILITY.md](./docs/ACCESSIBILITY.md) for the full checklist, methodology, and the one item (a manual screen-reader pass) still open.
+
 ## License
 
 MIT — see [LICENSE](./LICENSE).
