@@ -131,3 +131,40 @@ deployed backend for a production-representative number.
 `prism-backend/eval/runEvaluation.ts` reports mean/p50/p95/max latency and
 classification accuracy across a labeled event set (see
 `eval/fixtures/README.md` for how to populate it).
+
+### Measured Bedrock classification accuracy and latency
+
+`npm run eval` (from `packages/prism-backend`) runs the real `runPipeline()`
+-- real Bedrock InvokeModel calls, no mocks -- against a 34-event labeled
+dataset spanning person/package/vehicle/animal categories. Each event is a
+real photo chosen to stress a specific edge case (low light, motion blur,
+partial framing, multiple subjects, look-alike categories, etc. -- see
+`eval/dataset.ts` and `eval/fixtures/README.md`).
+
+Latest run (model `us.anthropic.claude-haiku-4-5-20251001-v1:0`, region
+`us-east-2`):
+
+| category | accuracy |
+| --- | --- |
+| person | 9/10 (90%) |
+| package | 8/8 (100%) |
+| vehicle | 8/8 (100%) |
+| animal | 8/8 (100%) |
+| **overall** | **33/34 (97%)** |
+
+| mean | p50 | p95 | max |
+| --- | --- | --- | --- |
+| 1998 ms | 1764 ms | 3670 ms | 3783 ms |
+
+The one misclassification (`person-with-dog`, expected `person`, predicted
+`animal`) is a real ambiguous case rather than a pipeline bug: the dog is
+more visually prominent in the frame than the person walking it. This
+latency is end-to-end (classification + scoring + WebSocket dispatch
+attempt), not just the isolated Bedrock call -- see "Latency notes" above
+for where the Bedrock-only round-trip is logged separately.
+
+Bedrock rejects oversized source images with a generic InvokeModel
+failure rather than a descriptive error; fixtures here are kept at or
+below 1568x1568px / ~85% JPEG quality, which resolved every such failure
+encountered while building this dataset. Worth keeping in mind for anyone
+feeding in un-resized camera exports.
