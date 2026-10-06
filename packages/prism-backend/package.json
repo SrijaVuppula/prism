@@ -8,6 +8,7 @@
     "build": "tsc",
     "test": "vitest run",
     "lint": "eslint src --ext .ts",
+    "migrate": "ts-node src/db/migrate.ts",
     "eval": "ts-node eval/runEvaluation.ts"
   },
   "dependencies": {
