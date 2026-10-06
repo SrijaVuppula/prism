@@ -15,11 +15,19 @@ import type { ChannelPayloads } from "../bedrock/agentOrchestration";
 
 export const COMPANION_WS_PATH = "/ws";
 
+/** The device an event came from, as shown on its alert. */
+export interface CompanionDevice {
+  id: string;
+  /** From the Ring API when it knows the device, otherwise the event's own label. */
+  name: string;
+}
+
 /** Message shape sent to companion-app clients over the WebSocket. */
 export interface CompanionEventMessage {
   type: "prism-event";
   event: PrismEvent;
   channels: ChannelPayloads;
+  device?: CompanionDevice;
 }
 
 export class WebSocketDeliveryError extends Error {

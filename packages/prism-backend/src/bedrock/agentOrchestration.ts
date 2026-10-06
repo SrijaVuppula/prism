@@ -39,12 +39,13 @@ import {
 } from "prism-alert-engine";
 import { classifySnapshot, type SnapshotClassification } from "./multimodalContext";
 import { resolveRepeatVisitor } from "./repeatVisitorMemory";
-import { broadcastEvent } from "../api/websocket";
+import { broadcastEvent, type CompanionDevice } from "../api/websocket";
 import { dispatchPushNotifications } from "../push/dispatchPush";
 import { resolveSignalScoreWeights } from "../feedback/weightAdjustment";
 import { DEFAULT_PREFERENCES, getPreferencesStore, type UserPreferences } from "../preferences/preferencesStore";
 import { isWithinQuietHours } from "../preferences/quietHours";
 import { hourInTimeZone } from "../preferences/timeZone";
+import { getRingDeviceDirectory } from "../ring/deviceDirectory";
 
 /**
  * Context inputs to the Signal Score engine that don't come from
@@ -83,11 +84,18 @@ export interface PipelineOptions {
    * Defaults to true.
    */
   deliver?: boolean;
+  /**
+   * The device's name as the event itself gives it (e.g. the simulator's
+   * "Front Door (simulator)"), shown when the Ring API doesn't know the
+   * device.
+   */
+  deviceName?: string;
 }
 
 export interface PipelineResult {
   event: PrismEvent;
   channels: ChannelPayloads;
+  device?: CompanionDevice;
 }
 
 // Which channels fire at each Signal Class. Routine still gets a visual
@@ -184,15 +192,30 @@ async function resolveOrchestrationContext(
 }
 
 /**
+ * The name to show for the event's device: the one the Ring API lists for
+ * that device id when Ring knows it (see ring/deviceDirectory.ts), else the
+ * event's own label. Best-effort and never throws.
+ */
+async function resolveDevice(event: PrismEvent, fallbackName?: string): Promise<CompanionDevice | undefined> {
+  if (!event.deviceId) return undefined;
+  const ringDevice = await getRingDeviceDirectory().lookup(event.deviceId);
+  if (ringDevice) {
+    console.log(`[ring] event=${event.id} device="${ringDevice.name}" (name from the Ring API)`);
+    return { id: event.deviceId, name: ringDevice.name };
+  }
+  return fallbackName ? { id: event.deviceId, name: fallbackName } : undefined;
+}
+
+/**
  * Pushes the scored event to connected companion clients over WebSocket and,
  * when the channel decision calls for it, dispatches Web Push. Both are
  * best-effort -- a failure here is logged and swallowed rather than
  * rethrown, since the classification and scoring already succeeded and
  * shouldn't be reported as a pipeline failure just because delivery hiccuped.
  */
-async function dispatch(scoredEvent: PrismEvent, channels: ChannelPayloads): Promise<void> {
+async function dispatch(scoredEvent: PrismEvent, channels: ChannelPayloads, device?: CompanionDevice): Promise<void> {
   try {
-    broadcastEvent({ type: "prism-event", event: scoredEvent, channels });
+    broadcastEvent({ type: "prism-event", event: scoredEvent, channels, ...(device ? { device } : {}) });
   } catch (err) {
     console.error(`[orchestration] WebSocket broadcast failed for event ${scoredEvent.id}:`, err);
   }
@@ -212,6 +235,9 @@ export async function runPipeline(
   options: PipelineOptions = {},
 ): Promise<PipelineResult> {
   const startedAt = Date.now();
+  // Looked up alongside classification rather than after it, so a Ring API
+  // round trip doesn't add to the alert's latency.
+  const devicePromise = resolveDevice(event, options.deviceName);
 
   const classification = await classifySnapshot(event.snapshotUrl);
   const preferences = await resolvePreferences(event.id);
@@ -247,10 +273,12 @@ export async function runPipeline(
       `classifyLatencyMs=${Date.now() - startedAt}`,
   );
 
+  const device = await devicePromise;
+
   if (options.deliver !== false) {
-    await dispatch(scoredEvent, channels);
+    await dispatch(scoredEvent, channels, device);
     console.log(`[orchestration] event=${event.id} delivered totalLatencyMs=${Date.now() - startedAt}`);
   }
 
-  return { event: scoredEvent, channels };
+  return { event: scoredEvent, channels, ...(device ? { device } : {}) };
 }

@@ -60,6 +60,16 @@ describe("ContextCard", () => {
     await expectNoA11yViolations(container);
   });
 
+  it("names the device the alert came from ahead of the subject", () => {
+    const scoredEvent: PrismEvent = {
+      ...baseEvent,
+      deviceId: "dev_1",
+      classification: { category: "person", description: card.description, confidence: 0.95 },
+    };
+    const { getByText } = render(<ContextCard card={card} event={scoredEvent} deviceName="Front Door" />);
+    expect(getByText("Front Door · Person · 95% confidence")).toBeInTheDocument();
+  });
+
   it("marks only the live card assertive so new alerts are announced", () => {
     const { container: liveContainer } = render(<ContextCard card={card} event={baseEvent} live />);
     expect(liveContainer.querySelector("article")).toHaveAttribute("aria-live", "assertive");

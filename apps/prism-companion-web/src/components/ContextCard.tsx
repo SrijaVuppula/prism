@@ -37,6 +37,8 @@ export interface ContextCardProps {
   variant?: "hero" | "compact";
   /** Household time zone (IANA name) for the timestamp; defaults to this device's zone. */
   timeZone?: string;
+  /** Name of the camera or doorbell the event came from, e.g. "Front Door". */
+  deviceName?: string;
 }
 
 const CATEGORY_NOUNS: Record<string, string> = {
@@ -77,15 +79,19 @@ export function ContextCard({
   knownVisitorTaggingEnabled = false,
   variant = "hero",
   timeZone,
+  deviceName,
 }: ContextCardProps) {
   // Keyed by event id: the live card is reused for each new alert, so a
   // failure on one snapshot mustn't hide the next one.
   const [failedSnapshotId, setFailedSnapshotId] = useState<string | null>(null);
   const snapshotFailed = failedSnapshotId === event.id;
   const classification = event.classification;
-  const subject = classification
-    ? `${CATEGORY_NOUNS[classification.category] ?? classification.category} · ${Math.round(classification.confidence * 100)}% confidence`
-    : null;
+  const subjectParts = [
+    deviceName,
+    classification &&
+      `${CATEGORY_NOUNS[classification.category] ?? classification.category} · ${Math.round(classification.confidence * 100)}% confidence`,
+  ].filter(Boolean);
+  const subject = subjectParts.length > 0 ? subjectParts.join(" · ") : null;
 
   return (
     <article

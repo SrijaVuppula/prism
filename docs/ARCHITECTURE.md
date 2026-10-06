@@ -17,6 +17,7 @@ prism-alert-engine :: scoring.ts
    ▼
 prism-backend :: agentOrchestration.ts
    │  chains: normalize → classify → score → channel decision → dispatch
+   │  (alongside classification: ring/deviceDirectory.ts → Ring API GET /v1/devices → device name)
    ▼
 prism-alert-engine :: channels/{haptic,visual,push}.ts
    │  pattern / card / push payload
@@ -33,6 +34,27 @@ apps/prism-companion-web
 - `prism-alert-engine` has zero Ring-specific imports — it takes a normalized event and Bedrock output, and returns channel payloads. That's what makes it a genuine standalone package rather than just a folder inside a Ring-only app.
 - `prism-backend` owns every Ring- and Bedrock-specific call, so there's one place to look to confirm the Ring API is actually called at runtime.
 - `prism-companion-web` is the only piece you need to open in a browser to see and feel the result.
+
+## Ring API calls
+
+Besides receiving webhooks, the backend calls the Ring Partner API
+(`ring/ringClient.ts`, base URL `https://api.amazonvision.com` -- the
+endpoint Ring's own sample app, `github.com/AmazonAppDev/ring-api-helloworld`,
+uses). Ring's webhooks identify a device by id only, so for each event with
+a device id the pipeline looks up the device's name with `GET /v1/devices`
+and sends it with the alert ("Front Door · Person · 95% confidence"). The
+lookup runs alongside Bedrock classification, so it adds no latency, and
+`ring/deviceDirectory.ts` caches the device list for ten minutes so a burst
+of events costs one call. It's best-effort like the other enrichment steps:
+with no access token, or when Ring can't be reached (it waits a minute after
+a failure before asking again), the alert goes out with the event's own
+device label instead -- for the simulator, "Front Door (simulator)".
+
+The access token comes from `RING_ACCESS_TOKEN`; the Ring Developer
+Playground issues ones valid for about 30 minutes. At startup the backend
+lists the account's devices once and logs the result, so a missing or
+expired token shows up immediately, and `npm run ring:devices` runs the
+same call from the command line.
 
 ## Orchestration design
 

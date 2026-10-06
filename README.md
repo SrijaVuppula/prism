@@ -34,7 +34,15 @@ Open http://localhost:5173 before running `npm run seed`, and set your household
 
 The steps above need no Ring Partner credentials. `npm run seed` signs Ring-shaped webhook events with the same `RING_WEBHOOK_SECRET` the backend uses and posts them to `POST /webhooks/ring`, with labeled photos from `packages/prism-backend/eval/fixtures` as the snapshots. From the webhook on, Bedrock classification, the Signal Score, repeat-visitor memory and delivery follow the same path as a live Ring event. The run includes a repeat visit by the first visitor (scored lower by repeat-visitor memory) and ends with a night-time visit, sent with a late-night timestamp in your time zone so it scores as Urgent whatever time you run it. Run `npm run clear-history` between runs to start from a clean slate.
 
-To link a real Ring account, fill in the `RING_*` OAuth values in `packages/prism-backend/.env` (see `.env.example`).
+### Connecting to the Ring API
+
+With a Ring Developer account, Prism also calls the Ring Partner API at runtime: Ring's webhooks identify a device by id only, so the backend looks up each alert's device name (e.g. "Front Door") with `GET /v1/devices`.
+
+1. In the Ring Developer Console, open the **Playground** and generate an access token (valid for about 30 minutes).
+2. Add it to `packages/prism-backend/.env` as `RING_ACCESS_TOKEN=...`.
+3. Run `npm run ring:devices` to list the devices the token can see.
+
+Restart `npm run dev`, and the backend log shows `[ring] Ring API connected: ...`. To have simulated events come from one of those devices, run `SIMULATOR_DEVICE_ID=<device id> npm run seed`; the alerts then show the name the Ring API gives that device. Without a token, alerts show the simulator's own "Front Door (simulator)" label.
 
 ### Other commands
 
@@ -44,6 +52,7 @@ To link a real Ring account, fill in the `RING_*` OAuth values in `packages/pris
 - `npm run clear-history` — delete stored alerts, repeat-visitor memory, feedback and visitor tags (keeps settings, push subscriptions and any linked Ring account)
 - `npm run eval:repeat --workspace=prism-backend` — measure how well repeat-visitor matching separates the same visitor from different ones (live Bedrock), to tune its thresholds
 - `npm run init-env` — fill in generated values missing from `packages/prism-backend/.env` (never overwrites existing ones)
+- `npm run ring:devices` — list the Ring devices `RING_ACCESS_TOKEN` can see (live Ring API)
 
 ## Personalization and privacy
 
@@ -53,7 +62,7 @@ Known-visitor tagging is a separate, **strictly opt-in** feature, off by default
 
 ## Status
 
-Ring OAuth account linking, HMAC-verified webhook ingestion (normalized into a shared event schema and persisted), and the Signal Score engine are built and tested. Bedrock classification is wired end to end from the webhook receiver through the Signal Score engine to a channel decision. Real-time delivery is live: a WebSocket server broadcasts scored events to the companion web app, and Web Push notifications reach subscribed devices even when the app isn't in focus. Measured WebSocket delivery latency (`npm run measure-delivery-latency`) is sub-millisecond locally -- see `docs/ARCHITECTURE.md` for the methodology and numbers. The companion app itself renders the visual context card and triggers the haptic pattern for each alert.
+Ring OAuth account linking, HMAC-verified webhook ingestion (normalized into a shared event schema and persisted), and the Signal Score engine are built and tested. Bedrock classification is wired end to end from the webhook receiver through the Signal Score engine to a channel decision, and alongside it the backend calls the Ring Partner API to name the device behind each alert. Real-time delivery is live: a WebSocket server broadcasts scored events to the companion web app, and Web Push notifications reach subscribed devices even when the app isn't in focus. Measured WebSocket delivery latency (`npm run measure-delivery-latency`) is sub-millisecond locally -- see `docs/ARCHITECTURE.md` for the methodology and numbers. The companion app itself renders the visual context card and triggers the haptic pattern for each alert.
 
 Personalization and session memory are also built and tested: repeat-visitor memory (Bedrock embeddings + pgvector similarity search, scoped to a rolling per-device session window), per-household preferences (quiet hours, haptic overrides, the known-visitor-tagging opt-in), and a feedback loop that adjusts Signal Score category weights from accumulated thumbs up/down votes.
 

@@ -128,7 +128,8 @@ ringRouter.post(
       // webhook ack. Errors are logged rather than surfaced to Ring, which
       // has no way to act on them and would otherwise retry a webhook that
       // was already accepted and stored.
-      runPipeline(event).catch((err) => {
+      const deviceName = typeof parsedBody.device.description === "string" ? parsedBody.device.description : undefined;
+      runPipeline(event, undefined, { deviceName }).catch((err) => {
         console.error(`[orchestration] pipeline failed for event ${event.id}:`, err);
       });
     } catch (err) {

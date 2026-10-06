@@ -92,6 +92,8 @@ describe("POST /webhooks/ring", () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(runPipeline).toHaveBeenCalledTimes(1);
     expect(vi.mocked(runPipeline).mock.calls[0][0]).toMatchObject({ id: "evt_route_1" });
+    // The payload's device label is the fallback name if the Ring API doesn't know the device.
+    expect(vi.mocked(runPipeline).mock.calls[0][2]).toEqual({ deviceName: "Front Door" });
   });
 
   it("needs only RING_WEBHOOK_SECRET, not the OAuth credentials", async () => {

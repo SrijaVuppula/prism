@@ -85,6 +85,17 @@ describe("HomePage", () => {
     await expectNoA11yViolations(container);
   });
 
+  it("names the device on the latest and earlier alerts when the message carries one", () => {
+    const latest = { ...event("evt_2", "A car in the driveway."), device: { id: "dev_1", name: "Driveway" } };
+    const earlier = { ...event("evt_1", "A package on the doorstep."), device: { id: "dev_2", name: "Front Door" } };
+    mockUseRealtimeEvents.mockReturnValue({ status: "open", events: [latest, earlier], latestEvent: latest });
+
+    const { getByText } = render(<HomePage />);
+
+    expect(getByText("Driveway")).toBeInTheDocument();
+    expect(getByText("Front Door")).toBeInTheDocument();
+  });
+
   it("shows the latest alert's score, breakdown and delivery beside it, and passes axe", async () => {
     const latest = event("evt_3", "A person at the door at night.");
     latest.event.classification = { category: "person", description: "A person at the door at night.", confidence: 0.93 };

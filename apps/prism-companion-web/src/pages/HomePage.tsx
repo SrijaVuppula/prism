@@ -67,6 +67,7 @@ export function HomePage() {
                   live
                   knownVisitorTaggingEnabled={preferences.knownVisitorTaggingEnabled}
                   timeZone={timeZone}
+                  deviceName={latestEvent.device?.name}
                 />
                 <AlertDetails event={latestEvent.event} channels={latestEvent.channels} />
               </div>
@@ -108,6 +109,7 @@ export function HomePage() {
                     variant="compact"
                     knownVisitorTaggingEnabled={preferences.knownVisitorTaggingEnabled}
                     timeZone={timeZone}
+                    deviceName={message.device?.name}
                   />
                 </li>
               ))}

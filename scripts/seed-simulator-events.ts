@@ -17,6 +17,11 @@
 // itself, from packages/prism-backend/.env, so both sides sign and verify
 // with the same secret. SIMULATOR_DELAY_MS sets the pause between events.
 //
+// Events come from a simulated device labelled "Front Door (simulator)".
+// With RING_ACCESS_TOKEN set on the backend, SIMULATOR_DEVICE_ID can name a
+// real device on that Ring account instead (see `npm run ring:devices`), and
+// the alerts then show the name the Ring API gives it.
+//
 // The night-time snapshot is sent with a late-night timestamp in the
 // household's time zone (read from the backend's preferences), so it gets
 // the Signal Score's late-night factor whatever time the simulator is run.
@@ -90,7 +95,7 @@ function buildPayload(sample: SimulatedEvent, occurredAt: Date) {
   return {
     event_id: randomUUID(),
     kind: sample.kind,
-    device: { id: "sim-device-1", description: "Front Door (simulator)" },
+    device: { id: process.env.SIMULATOR_DEVICE_ID || "sim-device-1", description: "Front Door (simulator)" },
     created_at: occurredAt.toISOString(),
     snapshot_url: snapshotUrl(sample.fixture),
   };

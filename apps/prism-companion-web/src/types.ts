@@ -12,10 +12,17 @@ export interface ChannelPayloads {
   push?: PushPayload;
 }
 
+/** The device an event came from: its name from the Ring API, or the event's own label. */
+export interface CompanionDevice {
+  id: string;
+  name: string;
+}
+
 export interface CompanionEventMessage {
   type: "prism-event";
   event: PrismEvent;
   channels: ChannelPayloads;
+  device?: CompanionDevice;
 }
 
 // Preference shapes re-declared here rather than imported from

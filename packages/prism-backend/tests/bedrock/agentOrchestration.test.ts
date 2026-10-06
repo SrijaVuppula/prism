@@ -21,6 +21,9 @@ vi.mock("../../src/feedback/weightAdjustment", () => ({
 vi.mock("../../src/bedrock/repeatVisitorMemory", () => ({
   resolveRepeatVisitor: vi.fn(),
 }));
+vi.mock("../../src/ring/deviceDirectory", () => ({
+  getRingDeviceDirectory: vi.fn(),
+}));
 
 import { classifySnapshot } from "../../src/bedrock/multimodalContext";
 import { broadcastEvent } from "../../src/api/websocket";
@@ -28,7 +31,10 @@ import { dispatchPushNotifications } from "../../src/push/dispatchPush";
 import { getPreferencesStore, DEFAULT_PREFERENCES } from "../../src/preferences/preferencesStore";
 import { resolveSignalScoreWeights } from "../../src/feedback/weightAdjustment";
 import { resolveRepeatVisitor } from "../../src/bedrock/repeatVisitorMemory";
+import { getRingDeviceDirectory } from "../../src/ring/deviceDirectory";
 import { DEFAULT_ORCHESTRATION_CONTEXT, runPipeline } from "../../src/bedrock/agentOrchestration";
+
+const ringLookup = vi.fn();
 
 function baseEvent(occurredAt: string): PrismEvent {
   return {
@@ -47,6 +53,8 @@ beforeEach(() => {
     save: vi.fn(),
   } as never);
   vi.mocked(resolveSignalScoreWeights).mockReset().mockResolvedValue(DEFAULT_SIGNAL_SCORE_WEIGHTS);
+  ringLookup.mockReset().mockResolvedValue(null);
+  vi.mocked(getRingDeviceDirectory).mockReturnValue({ lookup: ringLookup } as never);
   vi.mocked(resolveRepeatVisitor)
     .mockReset()
     .mockResolvedValue({ repeatVisitCount: 0, isKnownVisitor: false, visitorGroupId: "group_1" });
@@ -242,6 +250,45 @@ describe("runPipeline", () => {
     expect(resolveRepeatVisitor).toHaveBeenCalledTimes(1);
     expect(result.event.visitorGroupId).toBe("group_mail_carrier");
     expect(result.event.scoring?.signalClass).toBe("Routine");
+  });
+
+  describe("device name", () => {
+    beforeEach(() => {
+      vi.mocked(classifySnapshot).mockResolvedValue({ category: "package", description: "A box.", confidence: 0.9 });
+      vi.mocked(resolveRepeatVisitor).mockResolvedValue({ repeatVisitCount: 0, isKnownVisitor: false, visitorGroupId: "g" });
+    });
+
+    it("sends the name the Ring API lists for the device", async () => {
+      ringLookup.mockResolvedValue({ id: "dev_1", name: "Front Door" });
+
+      const result = await runPipeline(
+        { ...baseEvent("2026-01-01T14:00:00.000Z"), deviceId: "dev_1" },
+        undefined,
+        { deviceName: "Payload label" },
+      );
+
+      expect(ringLookup).toHaveBeenCalledWith("dev_1");
+      expect(result.device).toEqual({ id: "dev_1", name: "Front Door" });
+      expect(broadcastEvent).toHaveBeenCalledWith(expect.objectContaining({ device: { id: "dev_1", name: "Front Door" } }));
+    });
+
+    it("falls back to the event's own label when the Ring API doesn't know the device", async () => {
+      const result = await runPipeline(
+        { ...baseEvent("2026-01-01T14:00:00.000Z"), deviceId: "sim-device-1" },
+        undefined,
+        { deviceName: "Front Door (simulator)" },
+      );
+
+      expect(result.device).toEqual({ id: "sim-device-1", name: "Front Door (simulator)" });
+    });
+
+    it("sends no device for an event without a device id", async () => {
+      const result = await runPipeline(baseEvent("2026-01-01T14:00:00.000Z"), undefined, { deviceName: "Unused" });
+
+      expect(ringLookup).not.toHaveBeenCalled();
+      expect(result.device).toBeUndefined();
+      expect(vi.mocked(broadcastEvent).mock.calls[0][0]).not.toHaveProperty("device");
+    });
   });
 
   it("applies per-signal-class haptic overrides from preferences", async () => {
