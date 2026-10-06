@@ -28,11 +28,11 @@ npm run dev          # backend on :3000, companion app on http://localhost:5173
 npm run seed         # in a second terminal: replay five simulated doorbell events
 ```
 
-Open http://localhost:5173 before running `npm run seed`. Each event arrives as a context card with its Signal Class. Notable and Urgent events also vibrate on Android Chrome, and once push is enabled in the app, Urgent events send a Web Push notification.
+Open http://localhost:5173 before running `npm run seed`, and set your household time zone under **Settings** (it starts as UTC): quiet hours, the late-night factor in the Signal Score, and alert times all use it. Each event arrives as a context card with its Signal Class. Notable and Urgent events also vibrate on Android Chrome, and once push is enabled in the app, Urgent events send a Web Push notification.
 
 ### Simulator mode (no Ring credentials)
 
-The steps above need no Ring Partner credentials. `npm run seed` signs Ring-shaped webhook events with the same `RING_WEBHOOK_SECRET` the backend uses and posts them to `POST /webhooks/ring`, with labeled photos from `packages/prism-backend/eval/fixtures` as the snapshots. From the webhook on, Bedrock classification, the Signal Score, repeat-visitor memory and delivery follow the same path as a live Ring event.
+The steps above need no Ring Partner credentials. `npm run seed` signs Ring-shaped webhook events with the same `RING_WEBHOOK_SECRET` the backend uses and posts them to `POST /webhooks/ring`, with labeled photos from `packages/prism-backend/eval/fixtures` as the snapshots. From the webhook on, Bedrock classification, the Signal Score, repeat-visitor memory and delivery follow the same path as a live Ring event. The run includes a repeat visit by the first visitor (scored lower by repeat-visitor memory) and ends with a night-time visit, sent with a late-night timestamp in your time zone so it scores as Urgent whatever time you run it. Run `npm run clear-history` between runs to start from a clean slate.
 
 To link a real Ring account, fill in the `RING_*` OAuth values in `packages/prism-backend/.env` (see `.env.example`).
 
@@ -41,6 +41,7 @@ To link a real Ring account, fill in the `RING_*` OAuth values in `packages/pris
 - `npm test` — all workspaces' test suites
 - `npm run build` — compile every workspace
 - `npm run migrate` — apply any new database migrations
+- `npm run clear-history` — delete stored alerts, repeat-visitor memory, feedback and visitor tags (keeps settings, push subscriptions and any linked Ring account)
 - `npm run init-env` — fill in generated values missing from `packages/prism-backend/.env` (never overwrites existing ones)
 
 ## Personalization and privacy

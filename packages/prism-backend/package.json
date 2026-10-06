@@ -10,6 +10,7 @@
     "lint": "eslint src --ext .ts",
     "init-env": "ts-node src/initEnv.ts",
     "migrate": "ts-node src/db/migrate.ts",
+    "clear-history": "ts-node src/db/clearHistory.ts",
     "eval": "ts-node eval/runEvaluation.ts"
   },
   "dependencies": {

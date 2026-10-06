@@ -16,11 +16,16 @@
 // RING_WEBHOOK_SECRET is read from the environment or, like the backend
 // itself, from packages/prism-backend/.env, so both sides sign and verify
 // with the same secret. SIMULATOR_DELAY_MS sets the pause between events.
+//
+// The night-time snapshot is sent with a late-night timestamp in the
+// household's time zone (read from the backend's preferences), so it gets
+// the Signal Score's late-night factor whatever time the simulator is run.
 
 import { createHmac, randomUUID } from "node:crypto";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { loadEnv } from "../packages/prism-backend/src/loadEnv";
+import { DEFAULT_TIME_ZONE, hourInTimeZone } from "../packages/prism-backend/src/preferences/timeZone";
 
 const FIXTURES_DIR = path.resolve(__dirname, "..", "packages", "prism-backend", "eval", "fixtures");
 const DEFAULT_DELAY_MS = 4000;
@@ -30,17 +35,48 @@ interface SimulatedEvent {
   /** Fixture image (without .jpg) under eval/fixtures used as the snapshot. */
   fixture: string;
   label: string;
+  /** Send with a late-night timestamp rather than the current time. */
+  atNight?: boolean;
 }
 
 const SAMPLE_EVENTS: SimulatedEvent[] = [
   { kind: "ding", fixture: "person-front-door-daylight", label: "doorbell press by a visitor" },
   { kind: "motion", fixture: "animal-cat-on-porch", label: "cat on the porch" },
   { kind: "package-detected", fixture: "package-doorstep-daylight", label: "package left at the door" },
-  { kind: "person-detected", fixture: "person-night-lowlight", label: "person at the door at night" },
   // Same snapshot as the first event, so repeat-visitor memory can match it
   // to that earlier visit.
   { kind: "ding", fixture: "person-front-door-daylight", label: "same visitor rings again" },
+  { kind: "person-detected", fixture: "person-night-lowlight", label: "person at the door at night", atNight: true },
 ];
+
+/** The household's time zone from the backend's preferences, or UTC if unavailable. */
+async function householdTimeZone(targetUrl: string): Promise<string> {
+  try {
+    const response = await fetch(new URL("/preferences", targetUrl));
+    if (response.ok) {
+      const preferences = (await response.json()) as { timeZone?: unknown };
+      if (typeof preferences.timeZone === "string") return preferences.timeZone;
+    }
+  } catch {
+    // Fall through to UTC.
+  }
+  return DEFAULT_TIME_ZONE;
+}
+
+/**
+ * A moment that is late at night in `timeZone`: now, if it already is
+ * (22:00-05:59, the default off-hours window in prism-alert-engine's
+ * scoring), otherwise the same minute at 11 PM the evening before.
+ */
+function lateNight(now: Date, timeZone: string): Date {
+  const hour = hourInTimeZone(now, timeZone);
+  if (hour >= 22 || hour <= 5) return now;
+  return new Date(now.getTime() - (hour + 1) * 3_600_000);
+}
+
+function describeTime(date: Date, timeZone: string): string {
+  return date.toLocaleString("en-US", { timeZone, weekday: "short", hour: "numeric", minute: "2-digit", timeZoneName: "short" });
+}
 
 function snapshotUrl(fixture: string): string {
   const baseUrl = process.env.SIMULATOR_SNAPSHOT_BASE_URL;
@@ -50,12 +86,12 @@ function snapshotUrl(fixture: string): string {
   return pathToFileURL(path.join(FIXTURES_DIR, `${fixture}.jpg`)).href;
 }
 
-function buildPayload(sample: SimulatedEvent) {
+function buildPayload(sample: SimulatedEvent, occurredAt: Date) {
   return {
     event_id: randomUUID(),
     kind: sample.kind,
     device: { id: "sim-device-1", description: "Front Door (simulator)" },
-    created_at: new Date().toISOString(),
+    created_at: occurredAt.toISOString(),
     snapshot_url: snapshotUrl(sample.fixture),
   };
 }
@@ -74,15 +110,19 @@ async function main() {
     return;
   }
   const delayMs = Number(process.env.SIMULATOR_DELAY_MS ?? DEFAULT_DELAY_MS);
+  const timeZone = await householdTimeZone(targetUrl);
 
   for (const [index, sample] of SAMPLE_EVENTS.entries()) {
     // Spaced out so each alert arrives on its own, and so the repeat visit
-    // at the end is processed after the first visit has been remembered.
+    // is processed after the first visit has been remembered.
     if (index > 0 && delayMs > 0) {
       await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
 
-    const payload = buildPayload(sample);
+    const now = new Date();
+    const occurredAt = sample.atNight ? lateNight(now, timeZone) : now;
+    const label = occurredAt === now ? sample.label : `${sample.label}, ${describeTime(occurredAt, timeZone)}`;
+    const payload = buildPayload(sample, occurredAt);
     const body = JSON.stringify(payload);
     const signature = sign(body, webhookSecret);
 
@@ -96,9 +136,9 @@ async function main() {
         body,
       });
       const text = await response.text();
-      console.log(`[${response.ok ? "ok" : "failed"}] ${sample.kind} (${sample.label}) -> ${response.status} ${text}`);
+      console.log(`[${response.ok ? "ok" : "failed"}] ${sample.kind} (${label}) -> ${response.status} ${text}`);
     } catch (err) {
-      console.error(`[error] ${sample.kind} (${sample.label}) ->`, err);
+      console.error(`[error] ${sample.kind} (${label}) ->`, err);
     }
   }
 }

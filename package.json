@@ -17,6 +17,7 @@
     "init-env": "npm run init-env --workspace=prism-backend",
     "db:up": "docker compose -f infra/docker-compose.yml up -d --wait postgres && npm run migrate",
     "migrate": "npm run migrate --workspace=prism-backend",
+    "clear-history": "npm run clear-history --workspace=prism-backend",
     "dev": "concurrently --kill-others --names backend,web --prefix-colors blue,magenta \"npm:dev:backend\" \"npm:dev:web\"",
     "dev:backend": "npm run dev --workspace=prism-backend",
     "dev:web": "npm run dev --workspace=prism-companion-web",
