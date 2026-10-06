@@ -88,7 +88,7 @@ export async function resolveRepeatVisitor(
       `text=${match.textSimilarity.toFixed(3)} image=${match.imageSimilarity?.toFixed(3) ?? "n/a"}`,
   );
 
-  const repeatVisitCount = await countVisitorGroupOccurrences(visitorGroupId, deviceId, windowStart);
+  const repeatVisitCount = await countVisitorGroupOccurrences(visitorGroupId, deviceId, windowStart, event.id);
 
   let isKnownVisitor = false;
   if (knownVisitorTaggingEnabled) {

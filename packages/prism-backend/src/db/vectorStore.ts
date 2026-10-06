@@ -183,18 +183,24 @@ export async function recordEventEmbedding(record: EventEmbeddingRecord, pool: P
   );
 }
 
-/** Number of events already recorded in this visitor group, on this device, within the window. */
+/**
+ * Number of earlier events in this visitor group, on this device, within the
+ * window -- i.e. how many times this visitor has already been seen. The
+ * current event is excluded by id, since it's recorded in the group before
+ * the count runs (and is already there when a webhook is retried).
+ */
 export async function countVisitorGroupOccurrences(
   visitorGroupId: string,
   deviceId: string,
   windowStart: Date,
+  currentEventId: string,
   pool: Pool = getPool(),
 ): Promise<number> {
   const result = await pool.query<{ count: string }>(
     `SELECT COUNT(*)::text AS count
      FROM event_embeddings
-     WHERE visitor_group_id = $1 AND device_id = $2 AND created_at >= $3`,
-    [visitorGroupId, deviceId, windowStart],
+     WHERE visitor_group_id = $1 AND device_id = $2 AND created_at >= $3 AND event_id <> $4`,
+    [visitorGroupId, deviceId, windowStart, currentEventId],
   );
   return Number(result.rows[0]?.count ?? "0");
 }

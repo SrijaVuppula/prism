@@ -89,6 +89,8 @@ describe("resolveRepeatVisitor", () => {
     expect(result.visitorGroupId).toBe("group_1");
     expect(result.repeatVisitCount).toBe(2);
     expect(result.isKnownVisitor).toBe(false);
+    // The count leaves out this event, which was just recorded in the group.
+    expect(countVisitorGroupOccurrences).toHaveBeenCalledWith("group_1", "dev_1", expect.any(Date), "evt_1");
   });
 
   it("does not consult known-visitor tags when tagging is disabled, even on a match", async () => {

@@ -163,11 +163,20 @@ describe("recordEventEmbedding", () => {
 describe("countVisitorGroupOccurrences", () => {
   it("returns the count of prior events in the visitor group within the window", async () => {
     const pool = fakePool([{ count: "3" }]);
-    expect(await countVisitorGroupOccurrences("group_1", "dev_1", windowStart, pool)).toBe(3);
+    expect(await countVisitorGroupOccurrences("group_1", "dev_1", windowStart, "evt_4", pool)).toBe(3);
+  });
+
+  it("leaves the current event out of the count", async () => {
+    const pool = fakePool([{ count: "1" }]);
+    await countVisitorGroupOccurrences("group_1", "dev_1", windowStart, "evt_2", pool);
+
+    const [sql, params] = pool.query.mock.calls[0];
+    expect(sql).toMatch(/event_id <> \$4/);
+    expect(params).toEqual(["group_1", "dev_1", windowStart, "evt_2"]);
   });
 
   it("returns 0 when there is no row", async () => {
     const pool = fakePool([]);
-    expect(await countVisitorGroupOccurrences("group_1", "dev_1", windowStart, pool)).toBe(0);
+    expect(await countVisitorGroupOccurrences("group_1", "dev_1", windowStart, "evt_1", pool)).toBe(0);
   });
 });
