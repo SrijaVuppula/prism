@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "description": "Context-aware, multi-channel accessible alerts for Ring.",
+  "engines": {
+    "node": ">=22"
+  },
   "workspaces": [
     "packages/*",
     "apps/*"
@@ -12,15 +15,18 @@
     "test": "npm run test --workspaces --if-present",
     "build": "npm run build --workspaces --if-present",
     "init-env": "npm run init-env --workspace=prism-backend",
+    "db:up": "docker compose -f infra/docker-compose.yml up -d --wait postgres && npm run migrate",
     "migrate": "npm run migrate --workspace=prism-backend",
+    "dev": "concurrently --kill-others --names backend,web --prefix-colors blue,magenta \"npm:dev:backend\" \"npm:dev:web\"",
     "dev:backend": "npm run dev --workspace=prism-backend",
     "dev:web": "npm run dev --workspace=prism-companion-web",
     "seed": "ts-node scripts/seed-simulator-events.ts",
     "measure-delivery-latency": "ts-node scripts/measure-delivery-latency.ts"
   },
   "devDependencies": {
-    "typescript": "^5.5.0",
+    "concurrently": "^9.2.4",
+    "eslint": "^8.57.0",
     "ts-node": "^10.9.0",
-    "eslint": "^8.57.0"
+    "typescript": "^5.5.0"
   }
 }

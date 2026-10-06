@@ -1,4 +1,3 @@
-version: "3.9"
 services:
   postgres:
     image: ankane/pgvector:latest
@@ -10,15 +9,37 @@ services:
       - "5432:5432"
     volumes:
       - prism_pg_data:/var/lib/postgresql/data
+    # Checked over TCP: during first-time initialization Postgres only
+    # listens on its Unix socket, so this doesn't report ready too early.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U prism -d prism"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
 
+  # Containerized backend, for running it somewhere other than a dev
+  # machine. Behind a profile so `docker compose up` alone starts only
+  # Postgres and doesn't take port 3000 from `npm run dev`:
+  #   docker compose -f infra/docker-compose.yml --profile backend up -d --build
   backend:
-    build: ../packages/prism-backend
+    profiles: ["backend"]
+    build:
+      context: ..
+      dockerfile: packages/prism-backend/Dockerfile
     ports:
       - "3000:3000"
+    env_file:
+      - path: ../packages/prism-backend/.env
+        required: false
     environment:
       DATABASE_URL: postgres://prism:prism@postgres:5432/prism
+      # Passed through from the host shell for Bedrock calls.
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
 
 volumes:
   prism_pg_data:

@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
-# One-command local bootstrap.
+# One-command local bootstrap: dependencies, packages/prism-backend/.env,
+# and a migrated Postgres. Safe to re-run.
 set -e
 
 echo "Installing dependencies..."
 npm install
 
-echo "Starting local Postgres (pgvector)..."
-docker compose -f infra/docker-compose.yml up -d postgres
+echo "Preparing packages/prism-backend/.env (existing values are kept)..."
+npm run init-env
 
-echo "Done. Run 'npm run dev:backend' and 'npm run dev:web' in separate terminals."
+echo "Starting Postgres (pgvector) and applying migrations..."
+npm run db:up
+
+echo "Done. Run 'npm run dev' to start the backend and companion app, then 'npm run seed' in another terminal."
