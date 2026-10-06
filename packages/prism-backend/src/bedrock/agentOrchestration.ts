@@ -76,6 +76,15 @@ export interface ChannelPayloads {
   push?: PushPayload;
 }
 
+export interface PipelineOptions {
+  /**
+   * When false, skip delivery (WebSocket broadcast and Web Push) -- for the
+   * eval harness, which measures classification and scoring, not delivery.
+   * Defaults to true.
+   */
+  deliver?: boolean;
+}
+
 export interface PipelineResult {
   event: PrismEvent;
   channels: ChannelPayloads;
@@ -197,7 +206,11 @@ async function dispatch(scoredEvent: PrismEvent, channels: ChannelPayloads): Pro
   }
 }
 
-export async function runPipeline(event: PrismEvent, context?: OrchestrationContext): Promise<PipelineResult> {
+export async function runPipeline(
+  event: PrismEvent,
+  context?: OrchestrationContext,
+  options: PipelineOptions = {},
+): Promise<PipelineResult> {
   const startedAt = Date.now();
 
   const classification = await classifySnapshot(event.snapshotUrl);
@@ -234,11 +247,10 @@ export async function runPipeline(event: PrismEvent, context?: OrchestrationCont
       `classifyLatencyMs=${Date.now() - startedAt}`,
   );
 
-  await dispatch(scoredEvent, channels);
-
-  console.log(
-    `[orchestration] event=${event.id} delivered totalLatencyMs=${Date.now() - startedAt}`,
-  );
+  if (options.deliver !== false) {
+    await dispatch(scoredEvent, channels);
+    console.log(`[orchestration] event=${event.id} delivered totalLatencyMs=${Date.now() - startedAt}`);
+  }
 
   return { event: scoredEvent, channels };
 }

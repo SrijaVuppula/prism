@@ -145,6 +145,23 @@ describe("runPipeline", () => {
     expect(morning.event.scoring?.breakdown.timeOfDay).toBe(0);
   });
 
+  it("skips delivery when asked to, still returning the scored event and channel decision", async () => {
+    vi.mocked(classifySnapshot).mockResolvedValue({
+      category: "person",
+      description: "A person at the door.",
+      confidence: 0.9,
+    });
+
+    const result = await runPipeline(baseEvent("2026-01-01T02:30:00.000Z"), DEFAULT_ORCHESTRATION_CONTEXT, {
+      deliver: false,
+    });
+
+    expect(result.event.scoring?.signalClass).toBe("Urgent");
+    expect(result.channels.push).toBeDefined();
+    expect(broadcastEvent).not.toHaveBeenCalled();
+    expect(dispatchPushNotifications).not.toHaveBeenCalled();
+  });
+
   it("propagates a classification failure instead of swallowing it", async () => {
     vi.mocked(classifySnapshot).mockRejectedValue(new Error("bedrock unavailable"));
     await expect(runPipeline(baseEvent("2026-01-01T14:00:00.000Z"))).rejects.toThrow("bedrock unavailable");

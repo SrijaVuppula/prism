@@ -51,7 +51,9 @@ async function evaluateOne(labeled: LabeledEvent): Promise<EvalOutcome> {
 
   const startedAt = Date.now();
   try {
-    const result = await runPipeline(syntheticEvent);
+    // Delivery is skipped: there's no WebSocket server or push subscriber in
+    // an eval run, and this measures classification and scoring.
+    const result = await runPipeline(syntheticEvent, undefined, { deliver: false });
     const latencyMs = Date.now() - startedAt;
     const predictedCategory = result.event.classification?.category;
     return {
