@@ -2,7 +2,9 @@
 // prism-alert-engine. Semantic HTML and alt text from the start -- an <img>
 // with a real alt description, a <time> element, and (for the newest card
 // only) an aria-live region so screen readers announce new alerts as they
-// arrive.
+// arrive. The live card is kept to what an announcement needs (class,
+// subject, description, time); the score breakdown and delivery details sit
+// beside it in AlertDetails so they don't make every announcement longer.
 //
 // The snapshot is loaded through the backend (GET /events/:id/snapshot)
 // rather than from card.snapshotUrl, which may be a local file:// URL or
@@ -31,7 +33,16 @@ export interface ContextCardProps {
   live?: boolean;
   /** Whether the household has opted into known-visitor tagging (see docs/ACCESSIBILITY.md's privacy note). */
   knownVisitorTaggingEnabled?: boolean;
+  /** "hero" for the latest alert, "compact" for the history list. */
+  variant?: "hero" | "compact";
 }
+
+const CATEGORY_NOUNS: Record<string, string> = {
+  person: "Person",
+  package: "Package",
+  vehicle: "Vehicle",
+  animal: "Animal",
+};
 
 function formatTimestamp(iso: string): string {
   const date = new Date(iso);
@@ -43,24 +54,50 @@ export function snapshotSrc(eventId: string): string {
   return `${resolveApiBase()}/events/${encodeURIComponent(eventId)}/snapshot`;
 }
 
-export function ContextCard({ card, event, live = false, knownVisitorTaggingEnabled = false }: ContextCardProps) {
-  const [snapshotFailed, setSnapshotFailed] = useState(false);
+export function ContextCard({
+  card,
+  event,
+  live = false,
+  knownVisitorTaggingEnabled = false,
+  variant = "hero",
+}: ContextCardProps) {
+  // Keyed by event id: the live card is reused for each new alert, so a
+  // failure on one snapshot mustn't hide the next one.
+  const [failedSnapshotId, setFailedSnapshotId] = useState<string | null>(null);
+  const snapshotFailed = failedSnapshotId === event.id;
+  const classification = event.classification;
+  const subject = classification
+    ? `${CATEGORY_NOUNS[classification.category] ?? classification.category} · ${Math.round(classification.confidence * 100)}% confidence`
+    : null;
+
   return (
-    <article className="context-card" aria-live={live ? "assertive" : undefined} aria-atomic="true">
+    <article
+      className={`context-card context-card--${variant} context-card--${card.signalClass.toLowerCase()}`}
+      aria-live={live ? "assertive" : undefined}
+      aria-atomic="true"
+    >
       {!snapshotFailed && (
-        <img
-          className="context-card__snapshot"
-          src={snapshotSrc(event.id)}
-          alt={card.description}
-          onError={() => setSnapshotFailed(true)}
-        />
+        <div className="context-card__media">
+          <img
+            className="context-card__snapshot"
+            src={snapshotSrc(event.id)}
+            alt={card.description}
+            onError={() => setFailedSnapshotId(event.id)}
+          />
+        </div>
       )}
       <div className="context-card__body">
-        <SignalBadge signalClass={card.signalClass} />
+        <div className="context-card__meta">
+          <SignalBadge signalClass={card.signalClass} />
+          <time className="context-card__timestamp" dateTime={card.timestamp}>
+            {formatTimestamp(card.timestamp)}
+          </time>
+        </div>
+        {subject && <p className="context-card__subject">{subject}</p>}
         <p className="context-card__description">{card.description}</p>
-        <time className="context-card__timestamp" dateTime={card.timestamp}>
-          {formatTimestamp(card.timestamp)}
-        </time>
+        {variant === "compact" && event.scoring && (
+          <p className="context-card__score">Signal Score {event.scoring.signalScore}</p>
+        )}
 
         {event.classification && event.scoring && (
           <FeedbackButtons

@@ -66,6 +66,7 @@ describe("HomePage", () => {
     mockUseRealtimeEvents.mockReturnValue({ status: "connecting", events: [], latestEvent: null });
     const { container, getByText } = render(<HomePage />);
     expect(getByText(/waiting for the first alert/i)).toHaveAttribute("role", "status");
+    expect(getByText("Card, vibration and push")).toBeInTheDocument();
     await expectNoA11yViolations(container);
   });
 
@@ -81,6 +82,32 @@ describe("HomePage", () => {
     expect(getByRole("region", { name: /earlier alerts/i })).toBeInTheDocument();
     expect(getByText("A package on the doorstep.")).toBeInTheDocument();
 
+    await expectNoA11yViolations(container);
+  });
+
+  it("shows the latest alert's score, breakdown and delivery beside it, and passes axe", async () => {
+    const latest = event("evt_3", "A person at the door at night.");
+    latest.event.classification = { category: "person", description: "A person at the door at night.", confidence: 0.93 };
+    latest.event.scoring = {
+      signalScore: 79,
+      signalClass: "Urgent",
+      breakdown: { categoryBase: 55, confidenceAdjustment: 9, timeOfDay: 15 },
+    };
+    latest.channels.visual!.signalClass = "Urgent";
+    latest.channels.haptic = [300, 150, 300, 150, 300];
+    latest.channels.push = { title: "Prism — Urgent", body: "A person at the door at night.", data: {} };
+    const earlier = event("evt_1", "A package on the doorstep.");
+    mockUseRealtimeEvents.mockReturnValue({ status: "open", events: [latest, earlier], latestEvent: latest });
+
+    const { container, getByRole } = render(<HomePage />);
+
+    const details = getByRole("region", { name: "Alert details" });
+    expect(details).toHaveTextContent("Late night or early morning");
+    expect(getByRole("meter", { name: "Signal Score" })).toHaveAttribute("aria-valuenow", "79");
+    expect(getByRole("img", { name: /vibration pattern: 3 pulses of 300 ms/i })).toBeInTheDocument();
+    expect(getByRole("region", { name: "Alert summary" })).toHaveTextContent("1■ Urgent1▲ Notable0● Routine");
+    // The live card itself stays concise: the breakdown isn't part of what gets announced.
+    expect(container.querySelector("article[aria-live]")).not.toHaveTextContent("Late night or early morning");
     await expectNoA11yViolations(container);
   });
 

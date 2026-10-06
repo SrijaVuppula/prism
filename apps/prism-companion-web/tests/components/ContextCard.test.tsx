@@ -37,6 +37,29 @@ describe("ContextCard", () => {
     expect(getByText(card.description)).toBeInTheDocument();
   });
 
+  it("shows the next alert's snapshot even after the previous one failed to load", () => {
+    const { getByAltText, queryByAltText, rerender } = render(<ContextCard card={card} event={baseEvent} live />);
+    fireEvent.error(getByAltText(card.description));
+    expect(queryByAltText(card.description)).not.toBeInTheDocument();
+
+    const nextCard = { ...card, description: "A package on the doorstep." };
+    rerender(<ContextCard card={nextCard} event={{ ...baseEvent, id: "evt_2" }} live />);
+    expect(getByAltText(nextCard.description)).toHaveAttribute("src", "/events/evt_2/snapshot");
+  });
+
+  it("shows the subject and, in the compact variant, the Signal Score, and passes axe", async () => {
+    const scoredEvent: PrismEvent = {
+      ...baseEvent,
+      classification: { category: "package", description: card.description, confidence: 0.96 },
+      scoring: { signalScore: 49, signalClass: "Notable", breakdown: { categoryBase: 40, confidenceAdjustment: 9 } },
+    };
+    const { container, getByText } = render(<ContextCard card={card} event={scoredEvent} variant="compact" />);
+    expect(getByText("Package · 96% confidence")).toBeInTheDocument();
+    expect(getByText("Signal Score 49")).toBeInTheDocument();
+    expect(container.querySelector("article")).toHaveClass("context-card--compact", "context-card--notable");
+    await expectNoA11yViolations(container);
+  });
+
   it("marks only the live card assertive so new alerts are announced", () => {
     const { container: liveContainer } = render(<ContextCard card={card} event={baseEvent} live />);
     expect(liveContainer.querySelector("article")).toHaveAttribute("aria-live", "assertive");

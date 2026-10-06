@@ -76,13 +76,28 @@ describe("color contrast (WCAG 2.2 AA)", () => {
     ["notable on surface (Signal Class badge text)", "notable", "surface", NORMAL_TEXT_MIN],
     ["urgent on bg (Signal Class badge / error text)", "urgent", "bg", NORMAL_TEXT_MIN],
     ["urgent on surface (Signal Class badge / error text)", "urgent", "surface", NORMAL_TEXT_MIN],
-    // UI components: button borders, the pressed feedback-button fill, and
-    // the focus ring, each against the surface it's drawn on.
+    // UI components: the primary-button and pressed feedback-button fill,
+    // and the focus ring, each against the surface it's drawn on.
     ["accent on bg (button border)", "accent", "bg", UI_COMPONENT_MIN],
     ["accent on surface (button border)", "accent", "surface", UI_COMPONENT_MIN],
     ["bg on accent (pressed feedback button text on its fill)", "bg", "accent", NORMAL_TEXT_MIN],
     ["focus-ring on bg", "focus-ring", "bg", UI_COMPONENT_MIN],
     ["focus-ring on surface", "focus-ring", "surface", UI_COMPONENT_MIN],
+    ["focus-ring on surface-raised", "focus-ring", "surface-raised", UI_COMPONENT_MIN],
+    // Raised panels: the alert details column, Settings sections, class guide.
+    ["text on surface-raised (alert details, settings sections)", "text", "surface-raised", NORMAL_TEXT_MIN],
+    ["muted on surface-raised (panel labels, captions)", "muted", "surface-raised", NORMAL_TEXT_MIN],
+    ["routine on surface-raised (score, class guide)", "routine", "surface-raised", NORMAL_TEXT_MIN],
+    ["notable on surface-raised (score, class guide)", "notable", "surface-raised", NORMAL_TEXT_MIN],
+    ["urgent on surface-raised (score, class guide)", "urgent", "surface-raised", NORMAL_TEXT_MIN],
+    // Signal Class badge text on its tinted fill.
+    ["routine on routine-tint (badge)", "routine", "routine-tint", NORMAL_TEXT_MIN],
+    ["notable on notable-tint (badge)", "notable", "notable-tint", NORMAL_TEXT_MIN],
+    ["urgent on urgent-tint (badge)", "urgent", "urgent-tint", NORMAL_TEXT_MIN],
+    // Button and input outlines.
+    ["control-border on bg (input outline)", "control-border", "bg", UI_COMPONENT_MIN],
+    ["control-border on surface (button outline)", "control-border", "surface", UI_COMPONENT_MIN],
+    ["control-border on surface-raised (button outline)", "control-border", "surface-raised", UI_COMPONENT_MIN],
   ])("%s meets its AA threshold", (_label, fg, bg, minRatio) => {
     expect(vars[fg]).toBeDefined();
     expect(vars[bg]).toBeDefined();
