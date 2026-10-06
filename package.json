@@ -11,6 +11,7 @@
     "lint": "npm run lint --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "build": "npm run build --workspaces --if-present",
+    "init-env": "npm run init-env --workspace=prism-backend",
     "migrate": "npm run migrate --workspace=prism-backend",
     "dev:backend": "npm run dev --workspace=prism-backend",
     "dev:web": "npm run dev --workspace=prism-companion-web",
