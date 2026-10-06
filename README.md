@@ -15,12 +15,12 @@ Prism connects Ring's real-time event stream to an AI context layer (Bedrock mul
 - `packages/prism-alert-engine` — Ring-agnostic core: a Bedrock classification wrapper, the Signal Score engine, and channel encoders (haptic/visual/push). Standalone and MIT-licensed; any doorbell or camera vendor could adopt it directly.
 - `packages/prism-backend` — Ring OAuth + webhook ingestion, Bedrock classification + orchestration, Postgres + pgvector event store.
 - `apps/prism-companion-web` — the React/PWA companion app that receives alerts in real time.
-- `infra/` — AWS config and a docker-compose setup (Postgres, plus an optional containerized backend).
+- `infra/` — the Bedrock IAM policy and AWS setup notes, and a docker-compose setup (Postgres, plus an optional containerized backend).
 - `docs/` — architecture and accessibility notes.
 
 ## Setup
 
-Requires Node 22+, Docker, and AWS credentials with Amazon Bedrock access to Claude Haiku 4.5 and Amazon Titan Text Embeddings V2 (`.env.example` defaults to `us-east-2`). The AWS SDK picks credentials up from your AWS CLI profile or environment; they never go in a file in this repo.
+Requires Node 22+, Docker, and AWS credentials with Amazon Bedrock access to Claude Haiku 4.5 and Amazon Titan Text Embeddings V2 (`.env.example` defaults to `us-east-2`). The AWS SDK picks credentials up from your AWS CLI profile or environment; they never go in a file in this repo. `infra/aws/README.md` has the one-time model access steps and a least-privilege IAM policy.
 
 ```bash
 ./scripts/setup.sh   # npm install, create packages/prism-backend/.env, start Postgres and migrate
