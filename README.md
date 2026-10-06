@@ -15,16 +15,33 @@ Prism connects Ring's real-time event stream to an AI context layer (Bedrock mul
 - `packages/prism-alert-engine` — Ring-agnostic core: a Bedrock classification wrapper, the Signal Score engine, and channel encoders (haptic/visual/push). Standalone and MIT-licensed; any doorbell or camera vendor could adopt it directly.
 - `packages/prism-backend` — Ring OAuth + webhook ingestion, Bedrock classification + orchestration, Postgres + pgvector event store.
 - `apps/prism-companion-web` — the React/PWA companion app that receives alerts in real time.
-- `infra/` — AWS config and a local docker-compose setup (Postgres + backend + web).
+- `infra/` — AWS config and a docker-compose setup (Postgres, plus an optional containerized backend).
 - `docs/` — architecture and accessibility notes.
 
 ## Setup
 
+Requires Node 22+, Docker, and AWS credentials with Amazon Bedrock access to Claude Haiku 4.5 and Amazon Titan Text Embeddings V2 (`.env.example` defaults to `us-east-2`). The AWS SDK picks credentials up from your AWS CLI profile or environment; they never go in a file in this repo.
+
 ```bash
-npm install
-docker compose -f infra/docker-compose.yml up -d
-npm run dev:backend && npm run dev:web
+./scripts/setup.sh   # npm install, create packages/prism-backend/.env, start Postgres and migrate
+npm run dev          # backend on :3000, companion app on http://localhost:5173
+npm run seed         # in a second terminal: replay five simulated doorbell events
 ```
+
+Open http://localhost:5173 before running `npm run seed`. Each event arrives as a context card with its Signal Class. Notable and Urgent events also vibrate on Android Chrome, and once push is enabled in the app, Urgent events send a Web Push notification.
+
+### Simulator mode (no Ring credentials)
+
+The steps above need no Ring Partner credentials. `npm run seed` signs Ring-shaped webhook events with the same `RING_WEBHOOK_SECRET` the backend uses and posts them to `POST /webhooks/ring`, with labeled photos from `packages/prism-backend/eval/fixtures` as the snapshots. From the webhook on, Bedrock classification, the Signal Score, repeat-visitor memory and delivery follow the same path as a live Ring event.
+
+To link a real Ring account, fill in the `RING_*` OAuth values in `packages/prism-backend/.env` (see `.env.example`).
+
+### Other commands
+
+- `npm test` — all workspaces' test suites
+- `npm run build` — compile every workspace
+- `npm run migrate` — apply any new database migrations
+- `npm run init-env` — fill in generated values missing from `packages/prism-backend/.env` (never overwrites existing ones)
 
 ## Personalization and privacy
 
