@@ -4,12 +4,14 @@
 // activity.
 //
 // Usage (with the backend already running via `npm run dev:backend`):
-//   RING_WEBHOOK_SECRET=<same value the backend is configured with> npm run seed
+//   npm run seed
+//
+// RING_WEBHOOK_SECRET is read from the environment or, like the backend
+// itself, from packages/prism-backend/.env, so both sides sign and verify
+// with the same secret.
 
 import { createHmac, randomUUID } from "node:crypto";
-
-const TARGET_URL = process.env.SIMULATOR_TARGET_URL ?? "http://localhost:3000/webhooks/ring";
-const WEBHOOK_SECRET = process.env.RING_WEBHOOK_SECRET;
+import { loadEnv } from "../packages/prism-backend/src/loadEnv";
 
 interface SimulatedEvent {
   kind: "ding" | "motion" | "person-detected" | "package-detected";
@@ -37,7 +39,10 @@ function sign(body: string, secret: string): string {
 }
 
 async function main() {
-  if (!WEBHOOK_SECRET) {
+  loadEnv();
+  const targetUrl = process.env.SIMULATOR_TARGET_URL ?? "http://localhost:3000/webhooks/ring";
+  const webhookSecret = process.env.RING_WEBHOOK_SECRET;
+  if (!webhookSecret) {
     console.error("Set RING_WEBHOOK_SECRET to the same value the backend is configured with.");
     process.exitCode = 1;
     return;
@@ -46,10 +51,10 @@ async function main() {
   for (const sample of SAMPLE_EVENTS) {
     const payload = buildPayload(sample);
     const body = JSON.stringify(payload);
-    const signature = sign(body, WEBHOOK_SECRET);
+    const signature = sign(body, webhookSecret);
 
     try {
-      const response = await fetch(TARGET_URL, {
+      const response = await fetch(targetUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

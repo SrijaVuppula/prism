@@ -4,12 +4,15 @@
 
 import { createServer } from "node:http";
 import express from "express";
+import { loadEnv } from "./loadEnv";
 import { ringRouter } from "./ring/routes";
 import { pushRouter } from "./push/routes";
 import { preferencesRouter } from "./preferences/routes";
 import { visitorsRouter } from "./visitors/routes";
 import { feedbackRouter } from "./feedback/routes";
 import { attachWebSocketServer } from "./api/websocket";
+
+loadEnv();
 
 const app = express();
 const PORT = process.env.PORT ?? 3000;

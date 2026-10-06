@@ -5,8 +5,9 @@
 //
 // This calls the live Bedrock endpoint -- it's a live evaluation, not a
 // unit test -- so it needs valid AWS credentials, the same BEDROCK_REGION /
-// BEDROCK_MODEL_ID env vars the backend uses, and a labeled fixture image
-// for every entry in the dataset (see fixtures/README.md).
+// BEDROCK_MODEL_ID env vars the backend uses (read from the environment or
+// packages/prism-backend/.env), and a labeled fixture image for every entry
+// in the dataset (see fixtures/README.md).
 //
 // Usage: npm run eval --workspace=prism-backend
 
@@ -14,6 +15,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { EventCategory, PrismEvent } from "prism-alert-engine";
 import { runPipeline } from "../src/bedrock/agentOrchestration";
+import { loadEnv } from "../src/loadEnv";
 import { LABELED_EVENTS, type LabeledEvent } from "./dataset";
 
 interface EvalOutcome {
@@ -119,6 +121,7 @@ function printReport(outcomes: EvalOutcome[]): void {
 }
 
 async function main() {
+  loadEnv();
   console.log(`Running ${LABELED_EVENTS.length} labeled events against the live classification pipeline...`);
   // Sequential, not parallel: keeps this well under Bedrock's per-account
   // rate limits without needing a separate throttling layer.
