@@ -1,6 +1,6 @@
 // Entry point. Wires up: webhook receiver, WebSocket server, push
 // subscription endpoints, preferences/known-visitor-tagging/feedback
-// endpoints, and the orchestration pipeline.
+// endpoints, event snapshots, and the orchestration pipeline.
 
 import { createServer } from "node:http";
 import express from "express";
@@ -10,6 +10,7 @@ import { pushRouter } from "./push/routes";
 import { preferencesRouter } from "./preferences/routes";
 import { visitorsRouter } from "./visitors/routes";
 import { feedbackRouter } from "./feedback/routes";
+import { eventsRouter } from "./events/routes";
 import { attachWebSocketServer } from "./api/websocket";
 
 loadEnv();
@@ -26,6 +27,7 @@ app.use(pushRouter);
 app.use(preferencesRouter);
 app.use(visitorsRouter);
 app.use(feedbackRouter);
+app.use(eventsRouter);
 
 // The WebSocket server upgrades HTTP connections on this same server (see
 // api/websocket.ts), so it needs the underlying http.Server rather than the

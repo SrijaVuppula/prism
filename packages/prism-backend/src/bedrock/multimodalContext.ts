@@ -69,9 +69,10 @@ function mediaTypeFromExtension(url: string): string {
  * Loads the snapshot's raw bytes. Supports plain http(s) URLs (the normal
  * case for a Ring snapshot_url) and file:// URLs, so local fixture images
  * -- e.g. for the eval harness in ../../eval -- don't need to be hosted
- * over HTTP to be classified.
+ * over HTTP to be classified. Also used by events/routes.ts to serve the
+ * snapshot to the companion app.
  */
-async function loadSnapshotBytes(snapshotUrl: string): Promise<{ bytes: Buffer; mediaType: string }> {
+export async function loadSnapshotBytes(snapshotUrl: string): Promise<{ bytes: Buffer; mediaType: string }> {
   if (snapshotUrl.startsWith("file://")) {
     const bytes = await readFile(fileURLToPath(snapshotUrl));
     return { bytes, mediaType: mediaTypeFromExtension(snapshotUrl) };

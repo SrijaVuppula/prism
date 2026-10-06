@@ -17,6 +17,7 @@ export default defineConfig({
       "/preferences": BACKEND_ORIGIN,
       "/visitors": BACKEND_ORIGIN,
       "/alerts": BACKEND_ORIGIN,
+      "/events": BACKEND_ORIGIN,
       "/health": BACKEND_ORIGIN,
     },
   },

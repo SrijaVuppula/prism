@@ -1,4 +1,4 @@
-import { render } from "@testing-library/react";
+import { fireEvent, render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { ContextCard } from "../../src/components/ContextCard";
 import { expectNoA11yViolations } from "../a11y/axeHelper";
@@ -22,6 +22,19 @@ describe("ContextCard", () => {
     const { container, getByAltText } = render(<ContextCard card={card} event={baseEvent} />);
     expect(getByAltText(card.description)).toBeInTheDocument();
     await expectNoA11yViolations(container);
+  });
+
+  it("loads the snapshot through the backend rather than the raw snapshot URL", () => {
+    const fileEvent: PrismEvent = { ...baseEvent, id: "evt/1", snapshotUrl: "file:///fixtures/person.jpg" };
+    const { getByAltText } = render(<ContextCard card={{ ...card, snapshotUrl: fileEvent.snapshotUrl }} event={fileEvent} />);
+    expect(getByAltText(card.description)).toHaveAttribute("src", "/events/evt%2F1/snapshot");
+  });
+
+  it("drops the image instead of showing a broken one when the snapshot fails to load", () => {
+    const { getByAltText, queryByAltText, getByText } = render(<ContextCard card={card} event={baseEvent} />);
+    fireEvent.error(getByAltText(card.description));
+    expect(queryByAltText(card.description)).not.toBeInTheDocument();
+    expect(getByText(card.description)).toBeInTheDocument();
   });
 
   it("marks only the live card assertive so new alerts are announced", () => {
