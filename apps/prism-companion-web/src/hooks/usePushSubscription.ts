@@ -5,6 +5,7 @@
 
 import { useCallback, useState } from "react";
 import { urlBase64ToUint8Array } from "../lib/applicationServerKey";
+import { describePushError } from "../lib/pushErrors";
 
 export type PushSubscriptionStatus = "idle" | "subscribing" | "subscribed" | "unsupported" | "denied";
 
@@ -67,7 +68,7 @@ export function usePushSubscription(): UsePushSubscriptionResult {
       setStatus("subscribed");
     } catch (err) {
       console.error("[push] subscription failed:", err);
-      setError(err instanceof Error ? err.message : "Failed to enable push notifications.");
+      setError(describePushError(err));
       setStatus("idle");
     }
   }, []);
