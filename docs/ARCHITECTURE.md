@@ -145,9 +145,8 @@ real photo chosen to stress a specific edge case (low light, motion blur,
 partial framing, multiple subjects, look-alike categories, etc. -- see
 `eval/dataset.ts` and `eval/fixtures/README.md`).
 
-Latest run (October 6, 2026, after the classification prompt gained the
-visitor signature; model `us.anthropic.claude-haiku-4-5-20251001-v1:0`,
-region `us-east-2`):
+Latest run (October 6, 2026, classifying at temperature 0; model
+`us.anthropic.claude-haiku-4-5-20251001-v1:0`, region `us-east-2`):
 
 | category | accuracy |
 | --- | --- |
@@ -159,13 +158,17 @@ region `us-east-2`):
 
 | mean | p50 | p95 | max |
 | --- | --- | --- | --- |
-| 1696 ms | 1612 ms | 2575 ms | 2724 ms |
+| 1804 ms | 1635 ms | 3082 ms | 4861 ms |
 
 The one misclassification (`person-with-dog`, expected `person`, predicted
 `animal`) is a real ambiguous case rather than a pipeline bug: the dog is
-more visually prominent in the frame than the person walking it; it was
-also the only miss before the prompt change, when the run measured mean
-1998 ms, p50 1764 ms, p95 3670 ms, max 3783 ms. This latency covers
+more visually prominent in the frame than the person walking it. It has
+been the only miss in every run so far. Earlier runs at the default
+temperature measured mean 1696 ms, p50 1612 ms, p95 2575 ms, max 2724 ms
+(with the visitor-signature prompt) and mean 1998 ms, p50 1764 ms, p95
+3670 ms, max 3783 ms (before it); the slowest event in the latest run
+(`person-far-from-camera`) spent 4853 ms in the Bedrock call alone, so the
+spread between runs is Bedrock round-trip variance. This latency covers
 classification, scoring and the channel decision -- the eval skips delivery,
 since there's no WebSocket server or push subscriber in an eval run -- not
 just the isolated Bedrock call; see "Latency notes" above for where the
@@ -184,25 +187,42 @@ camera exports.
 `npm run eval:repeat` (from `packages/prism-backend`) classifies 10 fixture
 snapshots twice each with live Bedrock and compares the embedded text of
 the two runs of each snapshot ("same visitor") against every pair of
-different snapshots ("different visitors"). Two runs on October 6, 2026
-(Titan Text Embeddings V2, 1024 dimensions):
+different snapshots ("different visitors"). Three runs on October 6, 2026
+(Titan Text Embeddings V2, 1024 dimensions); runs 1 and 2 classified at the
+default temperature (1.0), run 3 at temperature 0:
 
 | text embedded | same visitor: min / mean | different visitors: max / mean |
 | --- | --- | --- |
 | visitor signature, run 1 | 0.634 / 0.847 | 0.569 / 0.216 |
 | visitor signature, run 2 | 0.654 / 0.827 | 0.510 / 0.220 |
+| visitor signature, run 3 | 1.000 / 1.000 | 0.552 / 0.207 |
 | description, run 1 | 0.739 / 0.850 | 0.598 / 0.232 |
 | description, run 2 | 0.605 / 0.846 | 0.569 / 0.235 |
+| description, run 3 | 1.000 / 1.000 | 0.589 / 0.239 |
 
 The previous threshold of 0.85 sat right at the *average* same-visitor
-similarity, so about half of genuine repeat visits went unrecognized. Across
-both runs the lowest same-visitor signature similarity (0.634) stays above
-the highest different-visitor one (0.569); for descriptions the two nearly
-touch (0.605 vs 0.598), which is why matching uses signatures. The default
-`REPEAT_VISITOR_SIMILARITY_THRESHOLD` of 0.60 is the midpoint the tool
-suggested. The most alike different visitors were all people (e.g. two
-different people in dark jackets and light trousers at 0.569), so that is
-where a false match would come from; a false match lowers the score by 8
-per repeat visit (at most 20), which rarely changes the Signal Class. This
+similarity of runs 1 and 2, so about half of genuine repeat visits went
+unrecognized. In those runs the lowest same-visitor signature similarity
+(0.634) stays above the highest different-visitor one (0.569); for
+descriptions the two nearly touch (0.605 vs 0.598), which is why matching
+uses signatures. The default `REPEAT_VISITOR_SIMILARITY_THRESHOLD` of 0.60
+is the midpoint of runs 1 and 2.
+
+Even so, a simulator repeat visit -- the same photo sent twice -- scored
+0.600 against the first visit and was missed, because at the default
+temperature the model words its description of one image differently on
+each call. Classification now runs at temperature 0, and run 3 shows the
+two descriptions of each snapshot coming back identical. That makes run
+3's same-visitor column a check of determinism rather than of drift: a real
+repeat visit is a different frame of the same person, described from a
+different pose and light, and runs 1 and 2 are the better guide to how far
+those descriptions can drift apart. So the threshold stays at 0.60 rather
+than run 3's suggested 0.78; it is above every different-visitor similarity
+measured in the three runs (at most 0.569).
+
+The most alike different visitors were all people (e.g. two different
+people in dark jackets and light trousers at 0.552-0.569), so that is where
+a false match would come from; a false match lowers the score by 8 per
+repeat visit (at most 20), which rarely changes the Signal Class. This
 sample has 10 snapshots and no pairs of the same person in different
 frames, so re-run the tool as the dataset grows.

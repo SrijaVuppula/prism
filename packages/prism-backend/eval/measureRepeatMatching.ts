@@ -5,11 +5,12 @@
 //
 // Each sample snapshot is classified twice. "Same visitor" pairs are the two
 // classifications of one snapshot: they show how much the model's wording
-// drifts between runs. "Different visitor" pairs are every pair of different
-// snapshots. Text similarity is measured on the visitor signature (what
-// matching uses) and on the description (what it used before signatures);
-// image similarity, when an image embedding model is configured, on the
-// snapshots themselves.
+// drifts between runs (classification runs at temperature 0, so the two
+// should match and this mostly confirms that). "Different visitor" pairs
+// are every pair of different snapshots. Text similarity is measured on the
+// visitor signature (what matching uses) and on the description (what it
+// used before signatures); image similarity, when an image embedding model
+// is configured, on the snapshots themselves.
 //
 // The sample photos have different backgrounds, while every frame from a
 // real doorbell camera shares one, so the image numbers for different
