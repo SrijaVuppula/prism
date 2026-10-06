@@ -1,7 +1,6 @@
 // Labeled event set for the classification/orchestration evaluation harness
 // (see runEvaluation.ts). Each entry names a fixture image under
-// fixtures/<id>.jpg that isn't checked into the repo -- see
-// fixtures/README.md before running `npm run eval`.
+// fixtures/<id>.jpg -- see fixtures/README.md.
 
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";

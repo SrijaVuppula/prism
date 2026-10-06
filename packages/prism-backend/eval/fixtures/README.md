@@ -1,13 +1,13 @@
 # Fixture images
 
-Each entry in `../dataset.ts` expects an image at `fixtures/<id>.jpg` -- see
-that entry's `notes` for what it should show. No images are checked in.
+One JPEG per entry in `../dataset.ts`, named `<id>.jpg` -- see that entry's
+`notes` for what it should show. They're used by `npm run eval` (from
+`packages/prism-backend`) and as the snapshots the local event simulator
+sends (`npm run seed` from the repository root).
 
-Before running `npm run eval` (from `packages/prism-backend`), populate this
-folder with one JPEG per dataset entry, named to match (e.g.
-`person-front-door-daylight.jpg`). Real Ring snapshots you've saved locally
-work best; representative stock photos are fine too as long as the subject
-matches the entry's notes.
+To add an entry, add it to `../dataset.ts` and put a matching image here.
+Real Ring snapshots work best; representative stock photos are fine too as
+long as the subject matches the entry's notes.
 
 Entries with no matching file are reported as errors in the eval output
 rather than silently skipped.
