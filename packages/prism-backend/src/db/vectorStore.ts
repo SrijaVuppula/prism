@@ -12,7 +12,8 @@
 // Two signals can match a visit to an earlier one, each with its own
 // threshold, and either is enough:
 // - text: the embedded visitor signature (or description) -- cosine
-//   similarity >= REPEAT_VISITOR_SIMILARITY_THRESHOLD (default 0.85);
+//   similarity >= REPEAT_VISITOR_SIMILARITY_THRESHOLD (default 0.60, chosen
+//   from `npm run eval:repeat` measurements -- see docs/ARCHITECTURE.md);
 // - image (only when image embeddings are on): the embedded snapshot --
 //   cosine similarity >= REPEAT_VISITOR_IMAGE_SIMILARITY_THRESHOLD (default
 //   0.92). Kept high on purpose: frames from one fixed doorbell camera share
@@ -54,7 +55,7 @@ export interface MatchCandidate {
 }
 
 const DEFAULT_SESSION_WINDOW_MINUTES = 45;
-const DEFAULT_SIMILARITY_THRESHOLD = 0.85;
+const DEFAULT_SIMILARITY_THRESHOLD = 0.6;
 const DEFAULT_IMAGE_SIMILARITY_THRESHOLD = 0.92;
 // Upper bound on prior events compared per lookup; one device rarely has
 // anywhere near this many events inside a session window.

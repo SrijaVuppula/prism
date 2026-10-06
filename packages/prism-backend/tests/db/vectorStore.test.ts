@@ -38,8 +38,8 @@ describe("getSessionWindowMs", () => {
 });
 
 describe("getSimilarityThreshold", () => {
-  it("defaults to 0.85", () => {
-    expect(getSimilarityThreshold()).toBe(0.85);
+  it("defaults to 0.60", () => {
+    expect(getSimilarityThreshold()).toBe(0.6);
   });
 
   it("honors REPEAT_VISITOR_SIMILARITY_THRESHOLD", () => {
@@ -49,7 +49,7 @@ describe("getSimilarityThreshold", () => {
 
   it("falls back to the default when out of (0,1] range", () => {
     process.env.REPEAT_VISITOR_SIMILARITY_THRESHOLD = "1.5";
-    expect(getSimilarityThreshold()).toBe(0.85);
+    expect(getSimilarityThreshold()).toBe(0.6);
   });
 });
 
@@ -129,7 +129,7 @@ describe("findSimilarEvent", () => {
 
   it("passes the image embedding and can match on it", async () => {
     const image = [0.9, 0.8, 0.7];
-    const pool = fakePool([{ event_id: "evt_old", visitor_group_id: "group_1", text_similarity: 0.6, image_similarity: 0.98 }]);
+    const pool = fakePool([{ event_id: "evt_old", visitor_group_id: "group_1", text_similarity: 0.3, image_similarity: 0.98 }]);
     const match = await findSimilarEvent({ text: embedding, image }, "dev_1", windowStart, pool);
     expect(match).toMatchObject({ eventId: "evt_old", matchedBy: "image" });
     expect(pool.query.mock.calls[0][1][3]).toBe(`[${image.join(",")}]`);

@@ -82,7 +82,7 @@ Bedrock embedding model → vector per event (the visitor signature, plus option
 
 **Pipeline**: `bedrock/repeatVisitorMemory.ts` runs after classification and before scoring. Alongside its one-sentence description, the classification prompt asks for a *visitor signature*: a short, lowercase, comma-separated list of the subject's stable visible traits (for a person, clothing items with their colors, headwear, and anything carried). Matching embeds the signature rather than the description, because a description's wording varies between runs on the same snapshot ("red jacket… delivery" one time, "red shirt… clipboard" the next) far more than a list of traits does; a reply without a signature falls back to the description. When `BEDROCK_IMAGE_EMBEDDING_MODEL_ID` is set (e.g. Amazon Titan Multimodal Embeddings, `amazon.titan-embed-image-v1`), the snapshot itself is embedded too, best-effort -- a failed image call just means a text-only match for that event.
 
-`db/vectorStore.ts`'s `findSimilarEvent` compares the event with every prior event on the same device within the window (cosine similarity via pgvector's `<=>` operator) and `pickMatch` applies the rule: a prior event matches when **either** the signature similarity reaches `REPEAT_VISITOR_SIMILARITY_THRESHOLD` (default 0.85) **or** the image similarity reaches `REPEAT_VISITOR_IMAGE_SIMILARITY_THRESHOLD` (default 0.92); the strongest qualifying match wins, and the log line says which signal matched. The image threshold is high on purpose: every frame from one doorbell camera shares the same background, so the image signal alone should only match a near-identical frame -- someone still standing at the door across several motion events. This event's embeddings are then recorded under whichever visitor group applies -- the matched group, or a freshly minted one -- so the chain keeps extending. `repeatVisitCount` (how many prior events are in that group within the window) always feeds into scoring; it doesn't persist any identity, just a same-session repetition count.
+`db/vectorStore.ts`'s `findSimilarEvent` compares the event with every prior event on the same device within the window (cosine similarity via pgvector's `<=>` operator) and `pickMatch` applies the rule: a prior event matches when **either** the signature similarity reaches `REPEAT_VISITOR_SIMILARITY_THRESHOLD` (default 0.60 -- see "Measured repeat-visitor matching" below) **or** the image similarity reaches `REPEAT_VISITOR_IMAGE_SIMILARITY_THRESHOLD` (default 0.92); the strongest qualifying match wins, and the log line says which signal matched. The image threshold is high on purpose: every frame from one doorbell camera shares the same background, so the image signal alone should only match a near-identical frame -- someone still standing at the door across several motion events. This event's embeddings are then recorded under whichever visitor group applies -- the matched group, or a freshly minted one -- so the chain keeps extending. `repeatVisitCount` (how many prior events are in that group within the window) always feeds into scoring; it doesn't persist any identity, just a same-session repetition count.
 
 **Choosing the thresholds**: `npm run eval:repeat --workspace=prism-backend` classifies a sample of the fixture snapshots twice each with live Bedrock and reports, for signatures, descriptions and (when enabled) snapshot images, how similar the same snapshot is to itself across runs versus how similar different snapshots are, with a suggested threshold when the two groups separate cleanly.
 
@@ -145,8 +145,9 @@ real photo chosen to stress a specific edge case (low light, motion blur,
 partial framing, multiple subjects, look-alike categories, etc. -- see
 `eval/dataset.ts` and `eval/fixtures/README.md`).
 
-Latest run (model `us.anthropic.claude-haiku-4-5-20251001-v1:0`, region
-`us-east-2`):
+Latest run (October 6, 2026, after the classification prompt gained the
+visitor signature; model `us.anthropic.claude-haiku-4-5-20251001-v1:0`,
+region `us-east-2`):
 
 | category | accuracy |
 | --- | --- |
@@ -158,17 +159,50 @@ Latest run (model `us.anthropic.claude-haiku-4-5-20251001-v1:0`, region
 
 | mean | p50 | p95 | max |
 | --- | --- | --- | --- |
-| 1998 ms | 1764 ms | 3670 ms | 3783 ms |
+| 1696 ms | 1612 ms | 2575 ms | 2724 ms |
 
 The one misclassification (`person-with-dog`, expected `person`, predicted
 `animal`) is a real ambiguous case rather than a pipeline bug: the dog is
-more visually prominent in the frame than the person walking it. This
-latency is end-to-end (classification + scoring + WebSocket dispatch
-attempt), not just the isolated Bedrock call -- see "Latency notes" above
-for where the Bedrock-only round-trip is logged separately.
+more visually prominent in the frame than the person walking it; it was
+also the only miss before the prompt change, when the run measured mean
+1998 ms, p50 1764 ms, p95 3670 ms, max 3783 ms. This latency covers
+classification, scoring and the channel decision -- the eval skips delivery,
+since there's no WebSocket server or push subscriber in an eval run -- not
+just the isolated Bedrock call; see "Latency notes" above for where the
+Bedrock-only round-trip is logged separately.
 
-Bedrock rejects oversized source images with a generic InvokeModel
-failure rather than a descriptive error; fixtures here are kept at or
-below 1568x1568px / ~85% JPEG quality, which resolved every such failure
-encountered while building this dataset. Worth keeping in mind for anyone
-feeding in un-resized camera exports.
+Bedrock rejects some oversized source images with a generic InvokeModel
+failure rather than a descriptive error; resizing fixtures to at most
+1568x1568px / ~85% JPEG quality resolved every such failure encountered
+while building this dataset. All fixtures but one are at or below that
+size (`package-partial-frame.jpg` is 3000x2000, about 0.5 MB, and
+classifies fine). Worth keeping in mind for anyone feeding in un-resized
+camera exports.
+
+### Measured repeat-visitor matching
+
+`npm run eval:repeat` (from `packages/prism-backend`) classifies 10 fixture
+snapshots twice each with live Bedrock and compares the embedded text of
+the two runs of each snapshot ("same visitor") against every pair of
+different snapshots ("different visitors"). Two runs on October 6, 2026
+(Titan Text Embeddings V2, 1024 dimensions):
+
+| text embedded | same visitor: min / mean | different visitors: max / mean |
+| --- | --- | --- |
+| visitor signature, run 1 | 0.634 / 0.847 | 0.569 / 0.216 |
+| visitor signature, run 2 | 0.654 / 0.827 | 0.510 / 0.220 |
+| description, run 1 | 0.739 / 0.850 | 0.598 / 0.232 |
+| description, run 2 | 0.605 / 0.846 | 0.569 / 0.235 |
+
+The previous threshold of 0.85 sat right at the *average* same-visitor
+similarity, so about half of genuine repeat visits went unrecognized. Across
+both runs the lowest same-visitor signature similarity (0.634) stays above
+the highest different-visitor one (0.569); for descriptions the two nearly
+touch (0.605 vs 0.598), which is why matching uses signatures. The default
+`REPEAT_VISITOR_SIMILARITY_THRESHOLD` of 0.60 is the midpoint the tool
+suggested. The most alike different visitors were all people (e.g. two
+different people in dark jackets and light trousers at 0.569), so that is
+where a false match would come from; a false match lowers the score by 8
+per repeat visit (at most 20), which rarely changes the Signal Class. This
+sample has 10 snapshots and no pairs of the same person in different
+frames, so re-run the tool as the dataset grows.
