@@ -180,6 +180,19 @@ describe("classifySnapshot visitor signature", () => {
     expect(body.messages[0].content[1].text).toMatch(/"visitorSignature"/);
   });
 
+  it("classifies at temperature 0 so the same snapshot is described the same way each time", async () => {
+    vi.stubGlobal("fetch", fakeImageFetch());
+    sendMock.mockResolvedValue(
+      bedrockResponse(JSON.stringify({ category: "animal", description: "A cat on the porch.", confidence: 0.9 })),
+    );
+
+    await classifySnapshot("https://cdn.ring.com/snap/evt_11.jpg");
+
+    const body = JSON.parse(sendMock.mock.calls[0][0].input.body);
+    expect(body.temperature).toBe(0);
+    expect(body.top_p).toBeUndefined();
+  });
+
   it("still classifies when the signature is missing or not a string", async () => {
     vi.stubGlobal("fetch", fakeImageFetch());
     for (const visitorSignature of [undefined, "", 42]) {

@@ -27,6 +27,11 @@ export class BedrockClassificationError extends Error {
 
 const ANTHROPIC_VERSION = "bedrock-2023-05-31";
 const MAX_TOKENS = 300;
+// Classification wants the same answer for the same snapshot: at the default
+// temperature (1.0) the wording of the description and visitor signature
+// varies between runs, which reads as a different visitor to repeat-visitor
+// matching.
+const TEMPERATURE = 0;
 
 const VALID_CATEGORIES: ReadonlySet<string> = new Set<EventCategory>([
   "person",
@@ -154,6 +159,7 @@ export async function classifySnapshot(snapshotUrl: string): Promise<SnapshotCla
   const body = JSON.stringify({
     anthropic_version: ANTHROPIC_VERSION,
     max_tokens: MAX_TOKENS,
+    temperature: TEMPERATURE,
     messages: [
       {
         role: "user",
