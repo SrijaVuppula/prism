@@ -1,11 +1,12 @@
 // Endpoints for reading and updating the household's alert preferences
-// (haptic overrides, quiet hours, known-visitor-tagging opt-in). Same
+// (time zone, haptic overrides, quiet hours, known-visitor-tagging opt-in). Same
 // single-household shape as preferencesStore.ts -- no userId in the
 // request, matching push/routes.ts and the rest of the no-auth codebase.
 
 import express, { Router } from "express";
 import type { HapticOverrides, SignalClass } from "prism-alert-engine";
 import { getPreferencesStore, type UserPreferences } from "./preferencesStore";
+import { isValidTimeZone } from "./timeZone";
 
 export const preferencesRouter = Router();
 
@@ -32,13 +33,14 @@ function isValidHour(value: unknown): value is number {
 
 function isValidPreferencesBody(body: unknown): body is UserPreferences {
   if (!isRecord(body)) return false;
+  if (!isValidTimeZone(body.timeZone)) return false;
 
   const quietHours = body.quietHours;
   if (
     !isRecord(quietHours) ||
     typeof quietHours.enabled !== "boolean" ||
-    !isValidHour(quietHours.startHourUtc) ||
-    !isValidHour(quietHours.endHourUtc)
+    !isValidHour(quietHours.startHour) ||
+    !isValidHour(quietHours.endHour)
   ) {
     return false;
   }
@@ -62,7 +64,7 @@ preferencesRouter.put("/preferences", express.json(), async (req, res, next) => 
   if (!isValidPreferencesBody(req.body)) {
     res.status(400).json({
       error:
-        "Expected { hapticOverrides, quietHours: { enabled, startHourUtc, endHourUtc }, knownVisitorTaggingEnabled }",
+        "Expected { timeZone, hapticOverrides, quietHours: { enabled, startHour, endHour }, knownVisitorTaggingEnabled }, with timeZone an IANA time zone name",
     });
     return;
   }

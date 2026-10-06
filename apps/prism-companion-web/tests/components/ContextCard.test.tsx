@@ -1,6 +1,6 @@
 import { fireEvent, render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { ContextCard } from "../../src/components/ContextCard";
+import { ContextCard, formatTimestamp } from "../../src/components/ContextCard";
 import { expectNoA11yViolations } from "../a11y/axeHelper";
 import type { ContextCardPayload, PrismEvent } from "prism-alert-engine";
 
@@ -92,5 +92,17 @@ describe("ContextCard", () => {
     );
     expect(getByRole("button", { name: /recognize this visitor/i })).toBeInTheDocument();
     await expectNoA11yViolations(container);
+  });
+});
+
+describe("formatTimestamp", () => {
+  it("shows the time and zone in the household's time zone", () => {
+    const text = formatTimestamp("2026-09-18T12:00:00.000Z", "America/New_York");
+    expect(text).toMatch(/8:00/);
+    expect(text).toMatch(/EDT/);
+  });
+
+  it("falls back to this device's zone for an unrecognized zone name", () => {
+    expect(() => formatTimestamp("2026-09-18T12:00:00.000Z", "Not/AZone")).not.toThrow();
   });
 });

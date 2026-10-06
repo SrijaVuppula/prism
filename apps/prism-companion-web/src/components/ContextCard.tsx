@@ -35,6 +35,8 @@ export interface ContextCardProps {
   knownVisitorTaggingEnabled?: boolean;
   /** "hero" for the latest alert, "compact" for the history list. */
   variant?: "hero" | "compact";
+  /** Household time zone (IANA name) for the timestamp; defaults to this device's zone. */
+  timeZone?: string;
 }
 
 const CATEGORY_NOUNS: Record<string, string> = {
@@ -44,10 +46,24 @@ const CATEGORY_NOUNS: Record<string, string> = {
   animal: "Animal",
 };
 
-function formatTimestamp(iso: string): string {
+/** "Oct 6, 2026, 4:02 PM EDT" -- in the household's time zone when one is given. */
+export function formatTimestamp(iso: string, timeZone?: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
-  return date.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+  const options: Intl.DateTimeFormatOptions = {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+  };
+  try {
+    return date.toLocaleString(undefined, { ...options, timeZone });
+  } catch {
+    // An unrecognized zone name: fall back to this device's own zone.
+    return date.toLocaleString(undefined, options);
+  }
 }
 
 export function snapshotSrc(eventId: string): string {
@@ -60,6 +76,7 @@ export function ContextCard({
   live = false,
   knownVisitorTaggingEnabled = false,
   variant = "hero",
+  timeZone,
 }: ContextCardProps) {
   // Keyed by event id: the live card is reused for each new alert, so a
   // failure on one snapshot mustn't hide the next one.
@@ -90,7 +107,7 @@ export function ContextCard({
         <div className="context-card__meta">
           <SignalBadge signalClass={card.signalClass} />
           <time className="context-card__timestamp" dateTime={card.timestamp}>
-            {formatTimestamp(card.timestamp)}
+            {formatTimestamp(card.timestamp, timeZone)}
           </time>
         </div>
         {subject && <p className="context-card__subject">{subject}</p>}

@@ -110,20 +110,39 @@ describe("runPipeline", () => {
     expect(result.channels.haptic).toBeUndefined();
   });
 
-  it("uses UTC hours to derive hourOfDay, independent of the process's local timezone", async () => {
+  it("derives hourOfDay in UTC by default, independent of the process's local timezone", async () => {
     vi.mocked(classifySnapshot).mockResolvedValue({
       category: "person",
       description: "A person at the door.",
       confidence: 0.9,
     });
 
-    await runPipeline(baseEvent("2026-01-01T02:30:00.000Z"), DEFAULT_ORCHESTRATION_CONTEXT);
-
     // computeSignalScore only receives the derived ScoringInput, not the raw
     // timestamp, so we assert indirectly: 02:30 UTC is off-hours and should
     // therefore score Urgent for an unknown person at default confidence.
     const result = await runPipeline(baseEvent("2026-01-01T02:30:00.000Z"), DEFAULT_ORCHESTRATION_CONTEXT);
     expect(result.event.scoring?.signalClass).toBe("Urgent");
+    expect(result.event.scoring?.breakdown.timeOfDay).toBe(15);
+  });
+
+  it("derives hourOfDay in the household's time zone", async () => {
+    vi.mocked(classifySnapshot).mockResolvedValue({
+      category: "person",
+      description: "A person at the door.",
+      confidence: 0.9,
+    });
+    vi.mocked(getPreferencesStore).mockReturnValue({
+      get: vi.fn().mockResolvedValue({ ...DEFAULT_PREFERENCES, timeZone: "America/New_York" }),
+    } as never);
+
+    // 03:30 UTC is 23:30 in New York (EDT): late night there.
+    const lateEvening = await runPipeline(baseEvent("2026-07-01T03:30:00.000Z"), DEFAULT_ORCHESTRATION_CONTEXT);
+    expect(lateEvening.event.scoring?.breakdown.timeOfDay).toBe(15);
+
+    // 14:00 UTC is 10:00 in New York: no late-night bonus, though it would
+    // be off-hours in a household on, say, Tokyo time.
+    const morning = await runPipeline(baseEvent("2026-07-01T14:00:00.000Z"), DEFAULT_ORCHESTRATION_CONTEXT);
+    expect(morning.event.scoring?.breakdown.timeOfDay).toBe(0);
   });
 
   it("propagates a classification failure instead of swallowing it", async () => {

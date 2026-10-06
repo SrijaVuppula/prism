@@ -44,6 +44,7 @@ import { dispatchPushNotifications } from "../push/dispatchPush";
 import { resolveSignalScoreWeights } from "../feedback/weightAdjustment";
 import { DEFAULT_PREFERENCES, getPreferencesStore, type UserPreferences } from "../preferences/preferencesStore";
 import { isWithinQuietHours } from "../preferences/quietHours";
+import { hourInTimeZone } from "../preferences/timeZone";
 
 /**
  * Context inputs to the Signal Score engine that don't come from
@@ -90,14 +91,12 @@ const CHANNELS_BY_SIGNAL_CLASS: Record<SignalClass, Array<keyof ChannelPayloads>
 };
 
 /**
- * Hour of day (0-23) for the given ISO timestamp, in UTC.
- * TODO: ScoringInput wants the device's local hour; that needs the Ring
- * device's timezone threaded through from device metadata, which isn't
- * available yet. UTC is used as a deterministic placeholder rather than the
- * server process's arbitrary local timezone.
+ * Hour of day (0-23) for the given ISO timestamp in the household's time
+ * zone (a Settings preference), so "late night" means late night where the
+ * doorbell is rather than in UTC or the server's own time zone.
  */
-function hourOfDay(occurredAt: string): number {
-  return new Date(occurredAt).getUTCHours();
+function hourOfDay(occurredAt: string, timeZone: string): number {
+  return hourInTimeZone(new Date(occurredAt), timeZone);
 }
 
 function decideChannels(
@@ -117,7 +116,7 @@ function decideChannels(
 }
 
 /**
- * Best-effort preference lookup: falls back to DEFAULT_PREFERENCES (no
+ * Best-effort preference lookup: falls back to DEFAULT_PREFERENCES (UTC, no
  * quiet hours, no haptic overrides, known-visitor tagging off) rather than
  * ever letting a Postgres hiccup block classification/scoring/dispatch.
  */
@@ -157,7 +156,7 @@ async function resolveOrchestrationContext(
   classification: ClassificationResult,
   preferences: UserPreferences,
 ): Promise<{ context: OrchestrationContext; visitorGroupId?: string }> {
-  const isQuietHours = isWithinQuietHours(new Date(event.occurredAt), preferences.quietHours);
+  const isQuietHours = isWithinQuietHours(new Date(event.occurredAt), preferences.quietHours, preferences.timeZone);
 
   if (!event.deviceId) {
     return { context: { isKnownVisitor: false, repeatVisitCount: 0, isQuietHours } };
@@ -219,7 +218,7 @@ export async function runPipeline(event: PrismEvent, context?: OrchestrationCont
   const scoringInput: ScoringInput = {
     category: classification.category,
     confidence: classification.confidence,
-    hourOfDay: hourOfDay(event.occurredAt),
+    hourOfDay: hourOfDay(event.occurredAt, preferences.timeZone),
     isKnownVisitor: resolvedContext.isKnownVisitor,
     repeatVisitCount: resolvedContext.repeatVisitCount,
     isQuietHours: resolvedContext.isQuietHours,

@@ -24,11 +24,14 @@ export interface CompanionEventMessage {
 // bundle. Kept in sync by hand with prism-backend/src/preferences/preferencesStore.ts.
 export interface QuietHours {
   enabled: boolean;
-  startHourUtc: number;
-  endHourUtc: number;
+  /** Local hour (0-23) in the household's time zone. */
+  startHour: number;
+  endHour: number;
 }
 
 export interface UserPreferences {
+  /** IANA time zone name, e.g. "America/New_York". */
+  timeZone: string;
   hapticOverrides: HapticOverrides;
   quietHours: QuietHours;
   knownVisitorTaggingEnabled: boolean;

@@ -47,8 +47,9 @@ describe("GET /preferences", () => {
 
 describe("PUT /preferences", () => {
   const valid = {
+    timeZone: "America/Los_Angeles",
     hapticOverrides: { Urgent: [100, 50, 100] },
-    quietHours: { enabled: true, startHourUtc: 22, endHourUtc: 6 },
+    quietHours: { enabled: true, startHour: 22, endHour: 6 },
     knownVisitorTaggingEnabled: true,
   };
 
@@ -68,10 +69,22 @@ describe("PUT /preferences", () => {
     const response = await fetch(`${baseUrl}/preferences`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...valid, quietHours: { enabled: true, startHourUtc: 25, endHourUtc: 6 } }),
+      body: JSON.stringify({ ...valid, quietHours: { enabled: true, startHour: 25, endHour: 6 } }),
     });
 
     expect(response.status).toBe(400);
+    expect(storeMock.save).not.toHaveBeenCalled();
+  });
+
+  it("rejects a time zone the runtime doesn't recognize, or a missing one", async () => {
+    for (const timeZone of ["EST5EDT-not-a-zone", "", undefined]) {
+      const response = await fetch(`${baseUrl}/preferences`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...valid, timeZone }),
+      });
+      expect(response.status).toBe(400);
+    }
     expect(storeMock.save).not.toHaveBeenCalled();
   });
 

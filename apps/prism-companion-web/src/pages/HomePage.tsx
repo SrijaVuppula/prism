@@ -20,7 +20,9 @@ import { usePreferences } from "../hooks/usePreferences";
 export function HomePage() {
   const { status, events, latestEvent } = useRealtimeEvents();
   useVibration(latestEvent);
-  const { preferences } = usePreferences();
+  const { preferences, loading: preferencesLoading } = usePreferences();
+  // Until preferences load, show times in this device's zone rather than the UTC default.
+  const timeZone = preferencesLoading ? undefined : preferences.timeZone;
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const visualEvents = events.filter((message) => message.channels.visual);
@@ -64,6 +66,7 @@ export function HomePage() {
                   event={latestEvent.event}
                   live
                   knownVisitorTaggingEnabled={preferences.knownVisitorTaggingEnabled}
+                  timeZone={timeZone}
                 />
                 <AlertDetails event={latestEvent.event} channels={latestEvent.channels} />
               </div>
@@ -104,6 +107,7 @@ export function HomePage() {
                     event={message.event}
                     variant="compact"
                     knownVisitorTaggingEnabled={preferences.knownVisitorTaggingEnabled}
+                    timeZone={timeZone}
                   />
                 </li>
               ))}

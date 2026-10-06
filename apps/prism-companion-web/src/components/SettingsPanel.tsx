@@ -1,6 +1,7 @@
-// Settings UI for the household's alert preferences: quiet hours, the
-// known-visitor-tagging opt-in (with its privacy disclosure inline, per
-// docs/ACCESSIBILITY.md), and per-Signal-Class haptic pattern overrides.
+// Settings UI for the household's alert preferences: time zone, quiet
+// hours, the known-visitor-tagging opt-in (with its privacy disclosure
+// inline, per docs/ACCESSIBILITY.md), and per-Signal-Class haptic pattern
+// overrides.
 // A plain form bound to usePreferences -- no separate "draft" state library,
 // just local component state seeded from the loaded preferences and PUT on
 // submit.
@@ -8,6 +9,7 @@
 import { useEffect, useState } from "react";
 import type { SignalClass } from "prism-alert-engine";
 import { usePreferences } from "../hooks/usePreferences";
+import { deviceTimeZone, timeZoneLabel, timeZoneOptions } from "../lib/timeZones";
 import type { UserPreferences } from "../types";
 
 const SIGNAL_CLASSES: SignalClass[] = ["Routine", "Notable", "Urgent"];
@@ -34,6 +36,7 @@ function textToPattern(text: string): number[] | undefined {
 export function SettingsPanel({ onClose }: { onClose: () => void }) {
   const { preferences, loading, saveStatus, error, save } = usePreferences();
   const [draft, setDraft] = useState<UserPreferences>(preferences);
+  const thisDevice = deviceTimeZone();
 
   useEffect(() => {
     if (!loading) setDraft(preferences);
@@ -63,6 +66,35 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
         }}
       >
         <fieldset className="settings-panel__section">
+          <legend>Time zone</legend>
+          <label className="settings-panel__field">
+            Household time zone
+            <select
+              value={draft.timeZone}
+              onChange={(e) => setDraft((prev) => ({ ...prev, timeZone: e.target.value }))}
+            >
+              {timeZoneOptions(draft.timeZone, thisDevice).map((zone) => (
+                <option key={zone.value} value={zone.value}>
+                  {zone.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="settings-panel__hint">
+            Used for quiet hours, the late-night factor in the Signal Score, and the times shown on alerts.
+          </p>
+          {thisDevice && thisDevice !== draft.timeZone && (
+            <button
+              type="button"
+              className="settings-panel__inline-button"
+              onClick={() => setDraft((prev) => ({ ...prev, timeZone: thisDevice }))}
+            >
+              Use this device's time zone ({timeZoneLabel(thisDevice)})
+            </button>
+          )}
+        </fieldset>
+
+        <fieldset className="settings-panel__section">
           <legend>Quiet hours</legend>
           <label className="settings-panel__checkbox">
             <input
@@ -76,36 +108,37 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
           </label>
           <div className="settings-panel__row">
             <label>
-              Start (UTC hour)
+              Start hour
               <input
                 type="number"
                 min={0}
                 max={23}
-                value={draft.quietHours.startHourUtc}
+                value={draft.quietHours.startHour}
                 onChange={(e) =>
                   setDraft((prev) => ({
                     ...prev,
-                    quietHours: { ...prev.quietHours, startHourUtc: Number(e.target.value) },
+                    quietHours: { ...prev.quietHours, startHour: Number(e.target.value) },
                   }))
                 }
               />
             </label>
             <label>
-              End (UTC hour)
+              End hour
               <input
                 type="number"
                 min={0}
                 max={23}
-                value={draft.quietHours.endHourUtc}
+                value={draft.quietHours.endHour}
                 onChange={(e) =>
                   setDraft((prev) => ({
                     ...prev,
-                    quietHours: { ...prev.quietHours, endHourUtc: Number(e.target.value) },
+                    quietHours: { ...prev.quietHours, endHour: Number(e.target.value) },
                   }))
                 }
               />
             </label>
           </div>
+          <p className="settings-panel__hint">Hours from 0 to 23, in the household time zone.</p>
         </fieldset>
 
         <fieldset className="settings-panel__section">

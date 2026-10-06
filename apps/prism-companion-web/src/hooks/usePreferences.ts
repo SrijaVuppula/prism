@@ -1,16 +1,18 @@
 // Fetches and saves the household's alert preferences
-// (prism-backend/src/preferences/routes.ts): haptic pattern overrides,
-// quiet hours, and the known-visitor-tagging opt-in. Used by
-// SettingsPanel, and by ContextCard indirectly (via HomePage) to decide
-// whether to offer the opt-in "tag this visitor" control at all.
+// (prism-backend/src/preferences/routes.ts): time zone, haptic pattern
+// overrides, quiet hours, and the known-visitor-tagging opt-in. Used by
+// SettingsPanel, and by ContextCard indirectly (via HomePage) to show alert
+// times in the household's time zone and to decide whether to offer the
+// opt-in "tag this visitor" control at all.
 
 import { useCallback, useEffect, useState } from "react";
 import { resolveApiBase } from "../lib/apiBase";
 import type { UserPreferences } from "../types";
 
 export const DEFAULT_PREFERENCES: UserPreferences = {
+  timeZone: "UTC",
   hapticOverrides: {},
-  quietHours: { enabled: false, startHourUtc: 22, endHourUtc: 6 },
+  quietHours: { enabled: false, startHour: 22, endHour: 6 },
   knownVisitorTaggingEnabled: false,
 };
 
