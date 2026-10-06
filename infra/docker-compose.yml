@@ -5,8 +5,10 @@ services:
       POSTGRES_USER: prism
       POSTGRES_PASSWORD: prism
       POSTGRES_DB: prism
+    # Published on 5433 rather than Postgres's default 5432, so it doesn't
+    # clash with a Postgres server already installed on the machine.
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - prism_pg_data:/var/lib/postgresql/data
     # Checked over TCP: during first-time initialization Postgres only
