@@ -11,7 +11,8 @@
     "init-env": "ts-node src/initEnv.ts",
     "migrate": "ts-node src/db/migrate.ts",
     "clear-history": "ts-node src/db/clearHistory.ts",
-    "eval": "ts-node eval/runEvaluation.ts"
+    "eval": "ts-node eval/runEvaluation.ts",
+    "eval:repeat": "ts-node eval/measureRepeatMatching.ts"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.700.0",

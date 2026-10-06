@@ -37,7 +37,7 @@ import {
   type SignalClass,
   type SignalScoreWeights,
 } from "prism-alert-engine";
-import { classifySnapshot } from "./multimodalContext";
+import { classifySnapshot, type SnapshotClassification } from "./multimodalContext";
 import { resolveRepeatVisitor } from "./repeatVisitorMemory";
 import { broadcastEvent } from "../api/websocket";
 import { dispatchPushNotifications } from "../push/dispatchPush";
@@ -153,7 +153,7 @@ async function resolveWeights(eventId: string): Promise<SignalScoreWeights> {
  */
 async function resolveOrchestrationContext(
   event: PrismEvent,
-  classification: ClassificationResult,
+  classification: SnapshotClassification,
   preferences: UserPreferences,
 ): Promise<{ context: OrchestrationContext; visitorGroupId?: string }> {
   const isQuietHours = isWithinQuietHours(new Date(event.occurredAt), preferences.quietHours, preferences.timeZone);

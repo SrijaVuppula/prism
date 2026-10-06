@@ -39,14 +39,31 @@ const CLASSIFICATION_PROMPT = `You are looking at a single snapshot from a doorb
 the camera captured and respond with nothing but a single JSON object, no
 markdown fences and no extra text, matching this exact shape:
 
-{"category": "person" | "package" | "vehicle" | "animal", "description": string, "confidence": number}
+{"category": "person" | "package" | "vehicle" | "animal", "description": string, "visitorSignature": string, "confidence": number}
 
 Rules:
 - "category" must be exactly one of: person, package, vehicle, animal. If more
   than one is visible, choose whichever the shot is most clearly about.
 - "description" is one plain-English sentence describing what's happening,
   written for someone who cannot see the image.
+- "visitorSignature" lists the main subject's stable visible traits, so the
+  same subject can be recognized in a later snapshot: lowercase,
+  comma-separated, most distinctive first, at most 8 items. For a person:
+  clothing items with their colors, headwear, hair, and anything carried. For
+  a vehicle: color, body type, and any markings. For an animal: species,
+  color, and markings. For a package: size, color, and any labels. Leave out
+  the background, lighting, pose, and anything you can't see clearly.
 - "confidence" is your confidence in the category, from 0 to 1.`;
+
+/**
+ * A classification plus the visitor signature repeat-visitor memory matches
+ * on (repeatVisitorMemory.ts). The signature is backend-only and optional:
+ * a reply without one still classifies, and matching falls back to the
+ * description.
+ */
+export interface SnapshotClassification extends ClassificationResult {
+  visitorSignature?: string;
+}
 
 let cachedClient: BedrockRuntimeClient | undefined;
 
@@ -100,9 +117,9 @@ function extractJsonObject(text: string): string {
   return match ? match[0] : text;
 }
 
-function parseClassification(rawText: string): ClassificationResult {
+function parseClassification(rawText: string): SnapshotClassification {
   const jsonText = extractJsonObject(rawText);
-  let parsed: { category?: unknown; description?: unknown; confidence?: unknown };
+  let parsed: { category?: unknown; description?: unknown; visitorSignature?: unknown; confidence?: unknown };
   try {
     parsed = JSON.parse(jsonText);
   } catch (err) {
@@ -119,14 +136,18 @@ function parseClassification(rawText: string): ClassificationResult {
     throw new BedrockClassificationError("Model response is missing a numeric confidence");
   }
 
+  const signature =
+    typeof parsed.visitorSignature === "string" ? parsed.visitorSignature.trim().toLowerCase() : "";
+
   return {
     category: parsed.category as EventCategory,
     description: parsed.description,
     confidence: Math.max(0, Math.min(1, parsed.confidence)),
+    ...(signature ? { visitorSignature: signature } : {}),
   };
 }
 
-export async function classifySnapshot(snapshotUrl: string): Promise<ClassificationResult> {
+export async function classifySnapshot(snapshotUrl: string): Promise<SnapshotClassification> {
   const { region, modelId } = getBedrockConfig();
   const { bytes, mediaType } = await loadSnapshotBytes(snapshotUrl);
 

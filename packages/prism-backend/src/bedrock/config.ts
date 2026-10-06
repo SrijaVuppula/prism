@@ -55,3 +55,33 @@ export function getBedrockEmbeddingConfig(): BedrockEmbeddingConfig {
     dimensions,
   };
 }
+
+/**
+ * Output width for snapshot image embeddings. Fixed, since it must match the
+ * `vector(1024)` image_embedding column in
+ * db/migrations/0010_event_image_embeddings.sql.
+ */
+export const IMAGE_EMBEDDING_DIMENSIONS = 1024;
+
+export interface BedrockImageEmbeddingConfig {
+  region: string;
+  /** Bedrock multimodal embedding model id, e.g. `amazon.titan-embed-image-v1`. */
+  modelId: string;
+  dimensions: number;
+}
+
+/**
+ * Image embeddings are optional: null (image matching off) unless
+ * BEDROCK_IMAGE_EMBEDDING_MODEL_ID is set. BEDROCK_IMAGE_EMBEDDING_REGION
+ * overrides the region for accounts where the model is only enabled
+ * elsewhere; it defaults to BEDROCK_REGION.
+ */
+export function getBedrockImageEmbeddingConfig(): BedrockImageEmbeddingConfig | null {
+  const modelId = process.env.BEDROCK_IMAGE_EMBEDDING_MODEL_ID;
+  if (!modelId) return null;
+  return {
+    region: process.env.BEDROCK_IMAGE_EMBEDDING_REGION || requireEnv("BEDROCK_REGION"),
+    modelId,
+    dimensions: IMAGE_EMBEDDING_DIMENSIONS,
+  };
+}

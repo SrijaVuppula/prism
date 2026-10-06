@@ -2,8 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   countVisitorGroupOccurrences,
   findSimilarEvent,
+  getImageSimilarityThreshold,
   getSessionWindowMs,
   getSimilarityThreshold,
+  pickMatch,
   recordEventEmbedding,
 } from "../../src/db/vectorStore";
 
@@ -51,30 +53,91 @@ describe("getSimilarityThreshold", () => {
   });
 });
 
+describe("pickMatch", () => {
+  const thresholds = { text: 0.85, image: 0.92 };
+  const candidate = (eventId: string, textSimilarity: number, imageSimilarity: number | null) => ({
+    eventId,
+    visitorGroupId: `group_${eventId}`,
+    textSimilarity,
+    imageSimilarity,
+  });
+
+  it("returns null when no candidate clears either threshold", () => {
+    expect(pickMatch([candidate("a", 0.8, 0.9), candidate("b", 0.5, null)], thresholds)).toBeNull();
+    expect(pickMatch([], thresholds)).toBeNull();
+  });
+
+  it("matches on the text signal alone", () => {
+    expect(pickMatch([candidate("a", 0.9, null)], thresholds)).toMatchObject({ eventId: "a", matchedBy: "text", similarity: 0.9 });
+  });
+
+  it("matches on the image signal alone, even when the wording drifted", () => {
+    expect(pickMatch([candidate("a", 0.7, 0.97)], thresholds)).toMatchObject({
+      eventId: "a",
+      matchedBy: "image",
+      textSimilarity: 0.7,
+      imageSimilarity: 0.97,
+      similarity: 0.97,
+    });
+  });
+
+  it("reports when both signals agree", () => {
+    expect(pickMatch([candidate("a", 0.9, 0.95)], thresholds)).toMatchObject({ matchedBy: "both" });
+  });
+
+  it("prefers the strongest qualifying candidate", () => {
+    const match = pickMatch([candidate("weak", 0.86, null), candidate("strong", 0.6, 0.99), candidate("none", 0.4, 0.5)], thresholds);
+    expect(match?.eventId).toBe("strong");
+  });
+});
+
+describe("getImageSimilarityThreshold", () => {
+  afterEach(() => {
+    delete process.env.REPEAT_VISITOR_IMAGE_SIMILARITY_THRESHOLD;
+  });
+
+  it("defaults to 0.92 and honors REPEAT_VISITOR_IMAGE_SIMILARITY_THRESHOLD", () => {
+    expect(getImageSimilarityThreshold()).toBe(0.92);
+    process.env.REPEAT_VISITOR_IMAGE_SIMILARITY_THRESHOLD = "0.95";
+    expect(getImageSimilarityThreshold()).toBe(0.95);
+    process.env.REPEAT_VISITOR_IMAGE_SIMILARITY_THRESHOLD = "2";
+    expect(getImageSimilarityThreshold()).toBe(0.92);
+  });
+});
+
 describe("findSimilarEvent", () => {
   it("returns null when no prior event exists in the window", async () => {
     const pool = fakePool([]);
-    expect(await findSimilarEvent(embedding, "dev_1", windowStart, pool)).toBeNull();
+    expect(await findSimilarEvent({ text: embedding }, "dev_1", windowStart, pool)).toBeNull();
   });
 
-  it("returns null when the closest match doesn't clear the similarity threshold", async () => {
-    const pool = fakePool([{ event_id: "evt_old", visitor_group_id: "group_1", similarity: 0.5 }]);
-    expect(await findSimilarEvent(embedding, "dev_1", windowStart, pool)).toBeNull();
+  it("returns null when no prior event clears a threshold", async () => {
+    const pool = fakePool([{ event_id: "evt_old", visitor_group_id: "group_1", text_similarity: 0.5, image_similarity: null }]);
+    expect(await findSimilarEvent({ text: embedding }, "dev_1", windowStart, pool)).toBeNull();
   });
 
-  it("returns the match when it clears the similarity threshold", async () => {
-    const pool = fakePool([{ event_id: "evt_old", visitor_group_id: "group_1", similarity: 0.92 }]);
-    const match = await findSimilarEvent(embedding, "dev_1", windowStart, pool);
-    expect(match).toEqual({ eventId: "evt_old", visitorGroupId: "group_1", similarity: 0.92 });
+  it("compares the text embedding only when there's no image embedding", async () => {
+    const pool = fakePool([{ event_id: "evt_old", visitor_group_id: "group_1", text_similarity: 0.92, image_similarity: null }]);
+    const match = await findSimilarEvent({ text: embedding }, "dev_1", windowStart, pool);
+    expect(match).toMatchObject({ eventId: "evt_old", visitorGroupId: "group_1", similarity: 0.92, matchedBy: "text" });
 
     const [sql, params] = pool.query.mock.calls[0];
     expect(sql).toMatch(/embedding <=> \$1::vector/);
-    expect(params).toEqual([`[${embedding.join(",")}]`, "dev_1", windowStart]);
+    expect(sql).toMatch(/image_embedding <=> \$4::vector/);
+    expect(params).toEqual([`[${embedding.join(",")}]`, "dev_1", windowStart, null]);
+  });
+
+  it("passes the image embedding and can match on it", async () => {
+    const image = [0.9, 0.8, 0.7];
+    const pool = fakePool([{ event_id: "evt_old", visitor_group_id: "group_1", text_similarity: 0.6, image_similarity: 0.98 }]);
+    const match = await findSimilarEvent({ text: embedding, image }, "dev_1", windowStart, pool);
+    expect(match).toMatchObject({ eventId: "evt_old", matchedBy: "image" });
+    expect(pool.query.mock.calls[0][1][3]).toBe(`[${image.join(",")}]`);
   });
 });
 
 describe("recordEventEmbedding", () => {
-  it("inserts the embedding under the given visitor group, ignoring duplicates", async () => {
+  it("inserts the embeddings under the given visitor group, ignoring duplicates", async () => {
     const pool = fakePool();
     await recordEventEmbedding(
       { eventId: "evt_1", deviceId: "dev_1", embedding, visitorGroupId: "group_1" },
@@ -84,7 +147,16 @@ describe("recordEventEmbedding", () => {
     expect(pool.query).toHaveBeenCalledTimes(1);
     const [sql, params] = pool.query.mock.calls[0];
     expect(sql).toMatch(/ON CONFLICT \(event_id\) DO NOTHING/);
-    expect(params).toEqual(["evt_1", "dev_1", `[${embedding.join(",")}]`, "group_1"]);
+    expect(params).toEqual(["evt_1", "dev_1", `[${embedding.join(",")}]`, null, "group_1"]);
+  });
+
+  it("stores the image embedding when there is one", async () => {
+    const pool = fakePool();
+    await recordEventEmbedding(
+      { eventId: "evt_1", deviceId: "dev_1", embedding, imageEmbedding: [0.5, 0.5], visitorGroupId: "group_1" },
+      pool,
+    );
+    expect(pool.query.mock.calls[0][1][3]).toBe("[0.5,0.5]");
   });
 });
 

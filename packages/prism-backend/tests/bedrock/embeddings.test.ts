@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { BedrockRuntimeClient } from "@aws-sdk/client-bedrock-runtime";
 
 const sendMock = vi.fn();
 
@@ -7,7 +8,12 @@ vi.mock("@aws-sdk/client-bedrock-runtime", () => ({
   InvokeModelCommand: vi.fn().mockImplementation((input: unknown) => ({ input })),
 }));
 
-import { BedrockEmbeddingError, embedDescription } from "../../src/bedrock/embeddings";
+import {
+  BedrockEmbeddingError,
+  embedDescription,
+  embedImage,
+  isImageEmbeddingEnabled,
+} from "../../src/bedrock/embeddings";
 
 const ENV = {
   BEDROCK_REGION: "us-east-1",
@@ -31,6 +37,8 @@ afterEach(() => {
     delete process.env[key];
   }
   delete process.env.BEDROCK_EMBEDDING_DIMENSIONS;
+  delete process.env.BEDROCK_IMAGE_EMBEDDING_MODEL_ID;
+  delete process.env.BEDROCK_IMAGE_EMBEDDING_REGION;
 });
 
 describe("embedDescription", () => {
@@ -70,5 +78,46 @@ describe("embedDescription", () => {
   it("wraps a Bedrock call failure", async () => {
     sendMock.mockRejectedValue(new Error("throttled"));
     await expect(embedDescription("A dog in the yard.")).rejects.toThrow(BedrockEmbeddingError);
+  });
+});
+
+describe("embedImage", () => {
+  it("is off, and refuses to run, until an image embedding model is configured", async () => {
+    expect(isImageEmbeddingEnabled()).toBe(false);
+    await expect(embedImage(Buffer.from([1, 2, 3]))).rejects.toBeInstanceOf(BedrockEmbeddingError);
+    expect(sendMock).not.toHaveBeenCalled();
+  });
+
+  it("sends the image as base64 with a 1024-wide output and returns the embedding", async () => {
+    process.env.BEDROCK_IMAGE_EMBEDDING_MODEL_ID = "amazon.titan-embed-image-v1";
+    sendMock.mockResolvedValue(embeddingResponse([0.4, 0.5]));
+
+    expect(isImageEmbeddingEnabled()).toBe(true);
+    const result = await embedImage(Buffer.from([1, 2, 3]));
+
+    expect(result).toEqual([0.4, 0.5]);
+    const command = sendMock.mock.calls[0][0].input;
+    expect(command.modelId).toBe("amazon.titan-embed-image-v1");
+    expect(JSON.parse(command.body)).toEqual({
+      inputImage: Buffer.from([1, 2, 3]).toString("base64"),
+      embeddingConfig: { outputEmbeddingLength: 1024 },
+    });
+  });
+
+  it("wraps a failed call in BedrockEmbeddingError", async () => {
+    process.env.BEDROCK_IMAGE_EMBEDDING_MODEL_ID = "amazon.titan-embed-image-v1";
+    sendMock.mockRejectedValue(new Error("AccessDeniedException"));
+
+    await expect(embedImage(Buffer.from([1]))).rejects.toBeInstanceOf(BedrockEmbeddingError);
+  });
+
+  it("uses BEDROCK_IMAGE_EMBEDDING_REGION when the model is enabled in a different region", async () => {
+    process.env.BEDROCK_IMAGE_EMBEDDING_MODEL_ID = "amazon.titan-embed-image-v1";
+    process.env.BEDROCK_IMAGE_EMBEDDING_REGION = "us-west-2";
+    sendMock.mockResolvedValue(embeddingResponse([0.1]));
+
+    await embedImage(Buffer.from([1]));
+
+    expect(BedrockRuntimeClient).toHaveBeenCalledWith({ region: "us-west-2" });
   });
 });

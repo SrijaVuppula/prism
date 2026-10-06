@@ -158,3 +158,36 @@ describe("BedrockClassifier", () => {
     expect(result.category).toBe("person");
   });
 });
+
+describe("classifySnapshot visitor signature", () => {
+  it("asks for a visitor signature and returns it normalized when the model provides one", async () => {
+    vi.stubGlobal("fetch", fakeImageFetch());
+    sendMock.mockResolvedValue(
+      bedrockResponse(
+        JSON.stringify({
+          category: "person",
+          description: "A delivery worker in a red cap stands at the door.",
+          visitorSignature: "  Red cap, red jacket, Black gloves, carrying dark bag ",
+          confidence: 0.95,
+        }),
+      ),
+    );
+
+    const result = await classifySnapshot("https://cdn.ring.com/snap/evt_9.jpg");
+
+    expect(result.visitorSignature).toBe("red cap, red jacket, black gloves, carrying dark bag");
+    const body = JSON.parse(sendMock.mock.calls[0][0].input.body);
+    expect(body.messages[0].content[1].text).toMatch(/"visitorSignature"/);
+  });
+
+  it("still classifies when the signature is missing or not a string", async () => {
+    vi.stubGlobal("fetch", fakeImageFetch());
+    for (const visitorSignature of [undefined, "", 42]) {
+      sendMock.mockResolvedValueOnce(
+        bedrockResponse(JSON.stringify({ category: "animal", description: "A cat on the porch.", visitorSignature, confidence: 0.9 })),
+      );
+      const result = await classifySnapshot("https://cdn.ring.com/snap/evt_10.jpg");
+      expect(result).toEqual({ category: "animal", description: "A cat on the porch.", confidence: 0.9 });
+    }
+  });
+});
