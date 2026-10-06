@@ -9,7 +9,7 @@ import {
   RingAlreadyLinkedError,
   RingOAuthError,
 } from "./oauth";
-import { getRingConfig } from "./config";
+import { getRingWebhookSecret } from "./config";
 import { getRingTokenStore } from "./tokenStore";
 import {
   assertRawRingEvent,
@@ -96,7 +96,15 @@ ringRouter.post(
     }
 
     const rawBody = req.body as Buffer;
-    const { webhookSecret } = getRingConfig();
+    let webhookSecret: string;
+    try {
+      webhookSecret = getRingWebhookSecret();
+    } catch (err) {
+      // Express 4 doesn't catch errors thrown from async handlers; without
+      // this a missing secret would leave the request hanging.
+      next(err);
+      return;
+    }
     if (!verifyHmacSignature(rawBody, signature, webhookSecret)) {
       res.status(401).json({ error: "Invalid signature" });
       return;

@@ -31,7 +31,16 @@ export function getRingConfig(): RingConfig {
     redirectUri: requireEnv("RING_REDIRECT_URI"),
     authorizeUrl: requireEnv("RING_AUTHORIZE_URL"),
     tokenUrl: requireEnv("RING_TOKEN_URL"),
-    webhookSecret: requireEnv("RING_WEBHOOK_SECRET"),
+    webhookSecret: getRingWebhookSecret(),
     scope: process.env.RING_OAUTH_SCOPE,
   };
+}
+
+/**
+ * Just the webhook signing secret. The webhook receiver only needs this, so
+ * it keeps working (e.g. with the local event simulator) before any OAuth
+ * credentials are configured.
+ */
+export function getRingWebhookSecret(): string {
+  return requireEnv("RING_WEBHOOK_SECRET");
 }

@@ -94,6 +94,43 @@ describe("POST /webhooks/ring", () => {
     expect(vi.mocked(runPipeline).mock.calls[0][0]).toMatchObject({ id: "evt_route_1" });
   });
 
+  it("needs only RING_WEBHOOK_SECRET, not the OAuth credentials", async () => {
+    for (const key of Object.keys(ENV)) {
+      if (key !== "RING_WEBHOOK_SECRET") delete process.env[key];
+    }
+    const payload = {
+      event_id: "evt_route_3",
+      kind: "motion",
+      device: { id: "sim-device-1" },
+      created_at: "2026-01-01T12:00:00.000Z",
+      snapshot_url: "https://cdn.ring.com/snap/evt_route_3.jpg",
+    };
+    const body = JSON.stringify(payload);
+
+    const response = await fetch(`${baseUrl}/webhooks/ring`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Ring-Signature": sign(body, ENV.RING_WEBHOOK_SECRET) },
+      body,
+    });
+
+    expect(response.status).toBe(202);
+    expect(ringEventStoreMock.save).toHaveBeenCalledTimes(1);
+  });
+
+  it("responds with a server error, rather than hanging, when RING_WEBHOOK_SECRET is not set", async () => {
+    delete process.env.RING_WEBHOOK_SECRET;
+
+    const response = await fetch(`${baseUrl}/webhooks/ring`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Ring-Signature": "deadbeef" },
+      body: "{}",
+      signal: AbortSignal.timeout(2000),
+    });
+
+    expect(response.status).toBe(500);
+    expect(ringEventStoreMock.save).not.toHaveBeenCalled();
+  });
+
   it("rejects a request with an invalid signature and never starts the pipeline", async () => {
     const payload = {
       event_id: "evt_route_2",
