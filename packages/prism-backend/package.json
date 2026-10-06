@@ -12,7 +12,8 @@
     "migrate": "ts-node src/db/migrate.ts",
     "clear-history": "ts-node src/db/clearHistory.ts",
     "eval": "ts-node eval/runEvaluation.ts",
-    "eval:repeat": "ts-node eval/measureRepeatMatching.ts"
+    "eval:repeat": "ts-node eval/measureRepeatMatching.ts",
+    "ring:devices": "ts-node src/ring/listDevices.ts"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.700.0",

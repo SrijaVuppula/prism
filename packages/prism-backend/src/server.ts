@@ -12,6 +12,7 @@ import { visitorsRouter } from "./visitors/routes";
 import { feedbackRouter } from "./feedback/routes";
 import { eventsRouter } from "./events/routes";
 import { attachWebSocketServer } from "./api/websocket";
+import { logRingConnection } from "./ring/deviceDirectory";
 
 loadEnv();
 
@@ -38,4 +39,5 @@ attachWebSocketServer(httpServer);
 
 httpServer.listen(PORT, () => {
   console.log(`prism-backend listening on :${PORT}`);
+  void logRingConnection();
 });

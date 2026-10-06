@@ -44,3 +44,22 @@ export function getRingConfig(): RingConfig {
 export function getRingWebhookSecret(): string {
   return requireEnv("RING_WEBHOOK_SECRET");
 }
+
+/**
+ * Base URL of the Ring Partner API. The default is the endpoint Ring's own
+ * sample app calls (github.com/AmazonAppDev/ring-api-helloworld).
+ */
+export const DEFAULT_RING_API_BASE_URL = "https://api.amazonvision.com";
+
+export function getRingApiBaseUrl(): string {
+  return process.env.RING_API_BASE_URL || DEFAULT_RING_API_BASE_URL;
+}
+
+/**
+ * Access token for Ring API calls, such as one generated in the Ring
+ * Developer Playground (valid for about 30 minutes), or null when none is
+ * configured. Optional: without it Prism runs on webhook data alone.
+ */
+export function getRingAccessToken(): string | null {
+  return process.env.RING_ACCESS_TOKEN || null;
+}

@@ -22,6 +22,7 @@
     "dev:backend": "npm run dev --workspace=prism-backend",
     "dev:web": "npm run dev --workspace=prism-companion-web",
     "seed": "ts-node scripts/seed-simulator-events.ts",
+    "ring:devices": "npm run ring:devices --workspace=prism-backend",
     "measure-delivery-latency": "ts-node scripts/measure-delivery-latency.ts"
   },
   "devDependencies": {
