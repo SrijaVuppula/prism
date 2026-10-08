@@ -6,23 +6,24 @@
 import type { Pool } from "pg";
 import type { PrismEvent } from "prism-alert-engine";
 import { getPool } from "./pool";
-import type { RawRingEvent } from "../ring/webhookHandler";
 
 export class RingEventStore {
   constructor(private readonly pool: Pool) {}
 
   /**
-   * Stores a normalized event and its raw source payload. Idempotent on
-   * event id, since webhook senders (Ring included) commonly retry on a
-   * slow or dropped response.
+   * Stores a normalized event, what kind of event it was, and the raw
+   * webhook payload. Idempotent on event id, since Ring retries deliveries
+   * and may send the same event more than once: returns false when the
+   * event was already stored, so the caller doesn't process it twice.
    */
-  async save(event: PrismEvent, raw: RawRingEvent): Promise<void> {
-    await this.pool.query(
+  async save(event: PrismEvent, kind: string, raw: unknown): Promise<boolean> {
+    const result = await this.pool.query(
       `INSERT INTO ring_events (id, kind, raw_payload, occurred_at, snapshot_url)
        VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT (id) DO NOTHING`,
-      [event.id, raw.kind, JSON.stringify(raw), event.occurredAt, event.snapshotUrl],
+      [event.id, kind, JSON.stringify(raw), event.occurredAt, event.snapshotUrl],
     );
+    return result.rowCount === 1;
   }
 
   async get(id: string): Promise<PrismEvent | null> {

@@ -12,10 +12,12 @@ import {
 import { getRingWebhookSecret } from "./config";
 import { getRingTokenStore } from "./tokenStore";
 import {
-  assertRawRingEvent,
-  normalizeRingEvent,
-  RingWebhookValidationError,
+  parseRingWebhook,
+  toRingAlert,
   verifyHmacSignature,
+  RingWebhookValidationError,
+  type RingAlert,
+  type RingWebhook,
 } from "./webhookHandler";
 import { getRingEventStore } from "../db/eventStore";
 import { runPipeline } from "../bedrock/agentOrchestration";
@@ -89,7 +91,7 @@ ringRouter.post(
   // verified against the exact bytes Ring sent.
   express.raw({ type: "application/json" }),
   async (req, res, next) => {
-    const signature = req.header("X-Ring-Signature");
+    const signature = req.header("X-Signature");
     if (!signature) {
       res.status(401).json({ error: "Missing signature" });
       return;
@@ -110,34 +112,46 @@ ringRouter.post(
       return;
     }
 
-    let parsedBody: unknown;
+    // Ring treats a 4xx as permanent (no retry) and a 5xx as temporary, so
+    // malformed payloads get a 400 and storage failures a 500.
+    let alert: RingAlert | null;
+    let webhook: RingWebhook;
     try {
-      parsedBody = JSON.parse(rawBody.toString("utf8"));
-    } catch {
-      res.status(400).json({ error: "Malformed JSON" });
+      webhook = parseRingWebhook(JSON.parse(rawBody.toString("utf8")));
+      alert = toRingAlert(webhook);
+    } catch (err) {
+      const message = err instanceof RingWebhookValidationError ? err.message : "Malformed JSON";
+      res.status(400).json({ error: message });
       return;
     }
 
-    try {
-      assertRawRingEvent(parsedBody);
-      const event = normalizeRingEvent(parsedBody);
-      await getRingEventStore().save(event, parsedBody);
-      res.status(202).json({ status: "accepted", eventId: event.id });
-
-      // Runs after the response so a slow Bedrock call never holds up the
-      // webhook ack. Errors are logged rather than surfaced to Ring, which
-      // has no way to act on them and would otherwise retry a webhook that
-      // was already accepted and stored.
-      const deviceName = typeof parsedBody.device.description === "string" ? parsedBody.device.description : undefined;
-      runPipeline(event, undefined, { deviceName }).catch((err) => {
-        console.error(`[orchestration] pipeline failed for event ${event.id}:`, err);
-      });
-    } catch (err) {
-      if (err instanceof RingWebhookValidationError) {
-        res.status(400).json({ error: err.message });
-        return;
-      }
-      next(err);
+    if (!alert) {
+      console.log(`[ring] webhook ${webhook.data.type} for account ${webhook.meta.account_id} received; no alert needed`);
+      res.status(200).json({ status: "received", type: webhook.data.type });
+      return;
     }
+
+    let stored: boolean;
+    try {
+      stored = await getRingEventStore().save(alert.event, alert.kind, webhook);
+    } catch (err) {
+      next(err);
+      return;
+    }
+    if (!stored) {
+      // A redelivery of an event already being handled.
+      res.status(200).json({ status: "duplicate", eventId: alert.event.id });
+      return;
+    }
+    res.status(200).json({ status: "accepted", eventId: alert.event.id });
+
+    // Runs after the response, since Ring expects one within 5 seconds and
+    // classification takes longer. Errors are logged rather than surfaced
+    // to Ring, which has no way to act on them and would otherwise retry a
+    // webhook that was already accepted and stored.
+    const { event, deviceName, fallbackClassification } = alert;
+    runPipeline(event, undefined, { deviceName, fallbackClassification }).catch((err) => {
+      console.error(`[orchestration] pipeline failed for event ${event.id}:`, err);
+    });
   },
 );

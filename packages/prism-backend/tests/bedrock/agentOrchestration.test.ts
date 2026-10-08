@@ -175,6 +175,25 @@ describe("runPipeline", () => {
     await expect(runPipeline(baseEvent("2026-01-01T14:00:00.000Z"))).rejects.toThrow("bedrock unavailable");
   });
 
+  it("alerts from the fallback classification when the snapshot can't be classified, without repeat-visitor memory", async () => {
+    vi.mocked(classifySnapshot).mockRejectedValue(new Error("Failed to download the Ring snapshot"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const fallbackClassification = {
+      category: "person" as const,
+      description: "Someone pressed the doorbell. No snapshot was available to describe them.",
+      confidence: 0.5,
+    };
+
+    const result = await runPipeline({ ...baseEvent("2026-01-01T14:00:00.000Z"), deviceId: "dev_1" }, undefined, {
+      fallbackClassification,
+    });
+
+    expect(result.event.classification).toEqual(fallbackClassification);
+    expect(result.channels.visual?.description).toBe(fallbackClassification.description);
+    expect(resolveRepeatVisitor).not.toHaveBeenCalled();
+    expect(broadcastEvent).toHaveBeenCalledTimes(1);
+  });
+
   it("broadcasts the scored event over WebSocket and dispatches push for an Urgent event", async () => {
     vi.mocked(classifySnapshot).mockResolvedValue({
       category: "person",

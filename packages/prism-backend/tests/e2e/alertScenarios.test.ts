@@ -5,22 +5,25 @@
 // isolation), and not the webhook route with runPipeline stubbed out
 // (routes.test.ts already exercises that). This file is the one place both
 // halves run together, so a wiring mistake between them (e.g. the wrong
-// field name crossing the normalizeRingEvent -> runPipeline boundary)
+// field name crossing the toRingAlert -> runPipeline boundary)
 // would actually be caught.
 //
 // Only the true external I/O boundaries are mocked -- Bedrock
 // classification, Postgres-backed preferences/repeat-visitor-memory/
 // feedback weights, WebSocket broadcast, and Web Push -- exactly the same
 // boundary agentOrchestration.test.ts mocks. Everything in between
-// (normalizeRingEvent, computeSignalScore, decideChannels, buildContextCard/
+// (parseRingWebhook/toRingAlert, computeSignalScore, decideChannels, buildContextCard/
 // buildPushPayload/encodeHapticPattern) is the real production code.
 //
-// Four scenarios, chosen to cover the shapes of event Prism actually has to
-// get right for a deaf/hard-of-hearing user to trust it: a package
-// delivery, an unknown visitor at night (should escalate), a known repeat
-// visitor at night (should de-escalate despite otherwise-identical
-// off-hours timing), and a false-positive motion trigger (should stay
-// calm, not buzz an urgent alert for a shadow).
+// The scenarios cover the shapes of event Prism actually has to get right
+// for a deaf/hard-of-hearing user to trust it: a package delivery, an
+// unknown visitor at night (should escalate), a known repeat visitor at
+// night (should de-escalate despite otherwise-identical off-hours timing),
+// a false-positive motion trigger (should stay calm, not buzz an urgent
+// alert for a shadow), and a doorbell press whose snapshot can't be
+// classified (should still alert). Webhooks use Ring's v1.1 format and
+// X-Signature header, with the simulator's snapshot attribute standing in
+// for the Ring API image download.
 
 import { createHmac } from "node:crypto";
 import type { Server } from "node:http";
@@ -61,17 +64,19 @@ import { DEFAULT_SIGNAL_SCORE_WEIGHTS } from "prism-alert-engine";
 import { ringRouter } from "../../src/ring/routes";
 
 const ENV = {
-  RING_CLIENT_ID: "client-123",
-  RING_CLIENT_SECRET: "secret-abc",
-  RING_REDIRECT_URI: "https://prism.example.com/auth/ring/callback",
-  RING_AUTHORIZE_URL: "https://ring.example.com/oauth/authorize",
-  RING_TOKEN_URL: "https://ring.example.com/oauth/token",
   RING_WEBHOOK_SECRET: "webhook-secret",
 };
 
 function sign(body: string, secret: string): string {
-  return createHmac("sha256", secret).update(body).digest("hex");
+  return `sha256=${createHmac("sha256", secret).update(body).digest("hex")}`;
 }
+
+const RING_EVENT_TYPES = {
+  ding: { type: "button_press" },
+  motion: { type: "motion_detected", sub_type: "motion" },
+  "person-detected": { type: "motion_detected", sub_type: "human" },
+  "package-detected": { type: "motion_detected", sub_type: "package_delivery" },
+} as const;
 
 interface RawEventInput {
   eventId: string;
@@ -82,18 +87,25 @@ interface RawEventInput {
 }
 
 async function postWebhook(baseUrl: string, input: RawEventInput) {
+  const { type, ...subType } = RING_EVENT_TYPES[input.kind];
   const payload = {
-    event_id: input.eventId,
-    kind: input.kind,
-    device: { id: input.deviceId, description: "Front Door" },
-    created_at: input.createdAt,
-    snapshot_url: input.snapshotUrl,
+    meta: { version: "1.1", time: input.createdAt, request_id: `req_${input.eventId}`, account_id: "acct_1" },
+    data: {
+      id: input.eventId,
+      type,
+      attributes: {
+        source: input.deviceId,
+        source_type: "devices",
+        timestamp: Date.parse(input.createdAt),
+        ...subType,
+        simulator: { snapshot_url: input.snapshotUrl, device_name: "Front Door" },
+      },
+    },
   };
   const body = JSON.stringify(payload);
-  const signature = sign(body, ENV.RING_WEBHOOK_SECRET);
   return fetch(`${baseUrl}/webhooks/ring`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "X-Ring-Signature": signature },
+    headers: { "Content-Type": "application/json", "X-Signature": sign(body, ENV.RING_WEBHOOK_SECRET) },
     body,
   });
 }
@@ -132,7 +144,7 @@ beforeEach(() => {
     .mockReset()
     .mockResolvedValue({ repeatVisitCount: 0, isKnownVisitor: false, visitorGroupId: "group_1" });
   vi.mocked(getRingEventStore).mockReset().mockReturnValue({
-    save: vi.fn().mockResolvedValue(undefined),
+    save: vi.fn().mockResolvedValue(true),
     get: vi.fn(),
   } as never);
 });
@@ -158,7 +170,7 @@ describe("full alert pipeline: webhook -> classify -> score -> deliver", () => {
       createdAt: "2026-09-18T14:00:00.000Z", // daytime
       snapshotUrl: "https://cdn.ring.com/snap/evt_package_1.jpg",
     });
-    expect(response.status).toBe(202);
+    expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ status: "accepted", eventId: "evt_package_1" });
 
     await vi.waitFor(() => expect(broadcastEvent).toHaveBeenCalledTimes(1));
@@ -192,7 +204,7 @@ describe("full alert pipeline: webhook -> classify -> score -> deliver", () => {
       createdAt: "2026-09-18T23:00:00.000Z", // off-hours
       snapshotUrl: "https://cdn.ring.com/snap/evt_unknown_1.jpg",
     });
-    expect(response.status).toBe(202);
+    expect(response.status).toBe(200);
 
     await vi.waitFor(() => expect(broadcastEvent).toHaveBeenCalledTimes(1));
 
@@ -228,7 +240,7 @@ describe("full alert pipeline: webhook -> classify -> score -> deliver", () => {
       createdAt: "2026-09-18T23:00:00.000Z", // same off-hours timestamp as the unknown-visitor case
       snapshotUrl: "https://cdn.ring.com/snap/evt_known_1.jpg",
     });
-    expect(response.status).toBe(202);
+    expect(response.status).toBe(200);
 
     await vi.waitFor(() => expect(broadcastEvent).toHaveBeenCalledTimes(1));
 
@@ -254,7 +266,7 @@ describe("full alert pipeline: webhook -> classify -> score -> deliver", () => {
       createdAt: "2026-09-18T23:00:00.000Z", // off-hours, which would push a person/package to Urgent
       snapshotUrl: "https://cdn.ring.com/snap/evt_falsepos_1.jpg",
     });
-    expect(response.status).toBe(202);
+    expect(response.status).toBe(200);
 
     await vi.waitFor(() => expect(broadcastEvent).toHaveBeenCalledTimes(1));
 
@@ -266,13 +278,35 @@ describe("full alert pipeline: webhook -> classify -> score -> deliver", () => {
     expect(dispatchPushNotifications).not.toHaveBeenCalled();
   });
 
-  it("degrades gracefully when Bedrock classification fails: webhook is still accepted, error is logged not thrown, and the server keeps serving requests", async () => {
+  it("doorbell press whose snapshot can't be classified: still alerts, from what Ring detected", async () => {
+    vi.mocked(classifySnapshot).mockRejectedValue(new Error("Failed to download the Ring snapshot"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const response = await postWebhook(baseUrl, {
+      eventId: "evt_no_snapshot_1",
+      kind: "ding",
+      deviceId: "dev_front_door",
+      createdAt: "2026-09-18T23:00:00.000Z",
+      snapshotUrl: "https://cdn.ring.com/snap/missing.jpg",
+    });
+    expect(response.status).toBe(200);
+
+    await vi.waitFor(() => expect(broadcastEvent).toHaveBeenCalledTimes(1));
+    const [message] = vi.mocked(broadcastEvent).mock.calls[0];
+    expect(message.event.classification).toMatchObject({ category: "person" });
+    expect(message.channels.visual?.description).toMatch(/pressed the doorbell/);
+    // A stand-in description says nothing about who was there, so it's never matched as a repeat visit.
+    expect(resolveRepeatVisitor).not.toHaveBeenCalled();
+    vi.mocked(console.error).mockRestore();
+  });
+
+  it("degrades gracefully when a motion event can't be classified: webhook is still accepted, error is logged not thrown, and the server keeps serving requests", async () => {
     vi.mocked(classifySnapshot).mockRejectedValueOnce(new Error("Bedrock unavailable"));
     const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     const failingResponse = await postWebhook(baseUrl, {
       eventId: "evt_failure_1",
-      kind: "ding",
+      kind: "motion",
       deviceId: "dev_front_door",
       createdAt: "2026-09-18T23:00:00.000Z",
       snapshotUrl: "https://cdn.ring.com/snap/evt_failure_1.jpg",
@@ -280,8 +314,9 @@ describe("full alert pipeline: webhook -> classify -> score -> deliver", () => {
     // The webhook ack happens before runPipeline() runs (see ring/routes.ts),
     // so a downstream classification failure must never turn into a failed
     // webhook response -- Ring has no way to act on that and would retry a
-    // delivery that was already accepted and stored.
-    expect(failingResponse.status).toBe(202);
+    // delivery that was already accepted and stored. Plain motion has no
+    // stand-in classification, so this one produces no alert.
+    expect(failingResponse.status).toBe(200);
 
     await vi.waitFor(() =>
       expect(consoleErrorSpy).toHaveBeenCalledWith(
@@ -306,7 +341,7 @@ describe("full alert pipeline: webhook -> classify -> score -> deliver", () => {
       createdAt: "2026-09-18T14:00:00.000Z",
       snapshotUrl: "https://cdn.ring.com/snap/evt_after_failure_1.jpg",
     });
-    expect(nextResponse.status).toBe(202);
+    expect(nextResponse.status).toBe(200);
     await vi.waitFor(() => expect(broadcastEvent).toHaveBeenCalledTimes(1));
   });
 });

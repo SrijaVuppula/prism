@@ -90,6 +90,13 @@ export interface PipelineOptions {
    * device.
    */
   deviceName?: string;
+  /**
+   * Classification to use if the snapshot can't be loaded or classified,
+   * e.g. what Ring itself detected for a doorbell press, so the event still
+   * produces an alert. Repeat-visitor memory is skipped for such events,
+   * since the stand-in description says nothing about who was there.
+   */
+  fallbackClassification?: ClassificationResult;
 }
 
 export interface PipelineResult {
@@ -164,7 +171,8 @@ async function resolveWeights(eventId: string): Promise<SignalScoreWeights> {
 /**
  * Resolves the real OrchestrationContext for an event: quiet hours from
  * preferences, plus repeat-visitor memory when the event has a deviceId to
- * scope a session window to (see repeatVisitorMemory.ts). Best-effort --
+ * scope a session window to and was classified from its snapshot (see
+ * repeatVisitorMemory.ts). Best-effort --
  * any failure here logs and falls back to DEFAULT_ORCHESTRATION_CONTEXT's
  * values for whichever part failed.
  */
@@ -172,10 +180,11 @@ async function resolveOrchestrationContext(
   event: PrismEvent,
   classification: SnapshotClassification,
   preferences: UserPreferences,
+  useRepeatVisitorMemory: boolean,
 ): Promise<{ context: OrchestrationContext; visitorGroupId?: string }> {
   const isQuietHours = isWithinQuietHours(new Date(event.occurredAt), preferences.quietHours, preferences.timeZone);
 
-  if (!event.deviceId) {
+  if (!event.deviceId || !useRepeatVisitorMemory) {
     return { context: { isKnownVisitor: false, repeatVisitCount: 0, isQuietHours } };
   }
 
@@ -239,7 +248,16 @@ export async function runPipeline(
   // round trip doesn't add to the alert's latency.
   const devicePromise = resolveDevice(event, options.deviceName);
 
-  const classification = await classifySnapshot(event.snapshotUrl);
+  let classification: SnapshotClassification;
+  let fromSnapshot = true;
+  try {
+    classification = await classifySnapshot(event.snapshotUrl);
+  } catch (err) {
+    if (!options.fallbackClassification) throw err;
+    console.error(`[orchestration] event=${event.id} snapshot classification failed, alerting from the event type:`, err);
+    classification = options.fallbackClassification;
+    fromSnapshot = false;
+  }
   const preferences = await resolvePreferences(event.id);
 
   let resolvedContext: OrchestrationContext;
@@ -247,7 +265,7 @@ export async function runPipeline(
   if (context) {
     resolvedContext = context;
   } else {
-    const resolved = await resolveOrchestrationContext(event, classification, preferences);
+    const resolved = await resolveOrchestrationContext(event, classification, preferences, fromSnapshot);
     resolvedContext = resolved.context;
     visitorGroupId = resolved.visitorGroupId;
   }

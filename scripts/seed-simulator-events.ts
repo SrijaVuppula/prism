@@ -1,11 +1,15 @@
-// Replays a realistic sequence of Ring-shaped webhook events against a
-// locally running prism-backend, so the full pipeline -- webhook receiver,
-// Bedrock classification, Signal Score, and delivery to the companion app --
-// can be exercised end to end without waiting on live Ring device activity.
+// Replays a realistic sequence of Ring webhook events against a locally
+// running prism-backend, so the full pipeline -- webhook receiver, Bedrock
+// classification, Signal Score, and delivery to the companion app -- can be
+// exercised end to end without waiting on live Ring device activity.
 //
-// Each event's snapshot is one of the labeled photos in
-// packages/prism-backend/eval/fixtures, sent as a file:// URL that the
-// backend reads directly (the same way the eval harness does). That only
+// Each event is a Ring v1.1 webhook (button_press, or motion_detected with
+// a Smart Alerts sub_type), signed the way Ring signs them: an HMAC-SHA256
+// of the body, keyed with RING_WEBHOOK_SECRET, in the X-Signature header.
+// Real Ring webhooks carry no image, so each one adds a `simulator`
+// attribute with a snapshot -- one of the labeled photos in
+// packages/prism-backend/eval/fixtures, as a file:// URL the backend reads
+// directly -- and the label "Front Door (simulator)". A file:// URL only
 // works when the backend runs on this machine; for a backend elsewhere, set
 // SIMULATOR_SNAPSHOT_BASE_URL to a URL prefix the backend can fetch the
 // fixture images from.
@@ -17,7 +21,6 @@
 // itself, from packages/prism-backend/.env, so both sides sign and verify
 // with the same secret. SIMULATOR_DELAY_MS sets the pause between events.
 //
-// Events come from a simulated device labelled "Front Door (simulator)".
 // With RING_ACCESS_TOKEN set on the backend, SIMULATOR_DEVICE_ID can name a
 // real device on that Ring account instead (see `npm run ring:devices`), and
 // the alerts then show the name the Ring API gives it.
@@ -35,8 +38,16 @@ import { DEFAULT_TIME_ZONE, hourInTimeZone } from "../packages/prism-backend/src
 const FIXTURES_DIR = path.resolve(__dirname, "..", "packages", "prism-backend", "eval", "fixtures");
 const DEFAULT_DELAY_MS = 4000;
 
+/** The Ring webhook type and Smart Alerts sub_type for each kind of simulated event. */
+const RING_EVENT_TYPES = {
+  ding: { type: "button_press" },
+  motion: { type: "motion_detected", sub_type: "motion" },
+  "person-detected": { type: "motion_detected", sub_type: "human" },
+  "package-detected": { type: "motion_detected", sub_type: "package_delivery" },
+} as const;
+
 interface SimulatedEvent {
-  kind: "ding" | "motion" | "person-detected" | "package-detected";
+  kind: keyof typeof RING_EVENT_TYPES;
   /** Fixture image (without .jpg) under eval/fixtures used as the snapshot. */
   fixture: string;
   label: string;
@@ -92,17 +103,28 @@ function snapshotUrl(fixture: string): string {
 }
 
 function buildPayload(sample: SimulatedEvent, occurredAt: Date) {
+  const deviceId = process.env.SIMULATOR_DEVICE_ID || "sim-device-1";
+  const { type, ...subType } = RING_EVENT_TYPES[sample.kind];
+  const timestamp = occurredAt.getTime();
   return {
-    event_id: randomUUID(),
-    kind: sample.kind,
-    device: { id: process.env.SIMULATOR_DEVICE_ID || "sim-device-1", description: "Front Door (simulator)" },
-    created_at: occurredAt.toISOString(),
-    snapshot_url: snapshotUrl(sample.fixture),
+    meta: { version: "1.1", time: new Date().toISOString(), request_id: randomUUID(), account_id: "sim-account" },
+    data: {
+      id: `${deviceId}_${type}_${timestamp}`,
+      type,
+      attributes: {
+        source: deviceId,
+        source_type: "devices",
+        timestamp,
+        ...subType,
+        simulator: { snapshot_url: snapshotUrl(sample.fixture), device_name: "Front Door (simulator)" },
+      },
+      relationships: { devices: { links: { self: `/v1/devices/${deviceId}` } } },
+    },
   };
 }
 
 function sign(body: string, secret: string): string {
-  return createHmac("sha256", secret).update(body).digest("hex");
+  return `sha256=${createHmac("sha256", secret).update(body).digest("hex")}`;
 }
 
 async function main() {
@@ -136,7 +158,7 @@ async function main() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-Ring-Signature": signature,
+          "X-Signature": signature,
         },
         body,
       });
