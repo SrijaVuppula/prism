@@ -102,3 +102,44 @@ describe("RingClient.downloadImage", () => {
     expect(error).toMatchObject({ status: 425, code: "RECORDING_NOT_READY" });
   });
 });
+
+describe("RingClient account linking calls", () => {
+  it("reads the Account ID from GET /v1/users/me", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse({ data: { type: "users", id: "ava1.ring.account.XXXYYY", attributes: { first_name: "J" } } }),
+    );
+    const client = new RingClient("t", "https://api.example.test", fetchImpl);
+
+    expect(await client.getAccountId()).toBe("ava1.ring.account.XXXYYY");
+    expect(String(fetchImpl.mock.calls[0][0])).toBe("https://api.example.test/v1/users/me");
+
+    fetchImpl.mockResolvedValue(jsonResponse({ data: {} }));
+    await expect(client.getAccountId()).rejects.toThrow(/no account id/);
+  });
+
+  it("confirms the link with the nonce, then marks the integration completed", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ data: { type: "app-integrations", attributes: { status: "awaiting" } } }))
+      .mockResolvedValueOnce(jsonResponse({ data: { type: "app-integrations", attributes: { status: "completed" } } }));
+    const client = new RingClient("t", "https://api.example.test", fetchImpl);
+
+    await client.completeAccountLink("nonce-1");
+
+    const [[postUrl, post], [patchUrl, patch]] = fetchImpl.mock.calls;
+    expect(String(postUrl)).toBe("https://api.example.test/v1/accounts/me/app-integrations");
+    expect(post.method).toBe("POST");
+    expect(JSON.parse(post.body)).toEqual({ nonce: "nonce-1" });
+    expect(String(patchUrl)).toBe("https://api.example.test/v1/accounts/me/app-integrations");
+    expect(patch.method).toBe("PATCH");
+    expect(JSON.parse(patch.body)).toEqual({ status: "completed" });
+  });
+
+  it("doesn't mark the integration completed when Ring rejects the nonce", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ errors: [{ status: "400", title: "Invalid Nonce" }] }, 400));
+    const client = new RingClient("t", "https://api.example.test", fetchImpl);
+
+    await expect(client.completeAccountLink("bad")).rejects.toMatchObject({ status: 400 });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+});

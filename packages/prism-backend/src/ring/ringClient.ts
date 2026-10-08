@@ -66,6 +66,28 @@ export class RingClient {
       });
   }
 
+  /** The Ring Account ID of the user the token belongs to: GET /v1/users/me. */
+  async getAccountId(): Promise<string> {
+    const body = (await this.requestJson("GET", "/v1/users/me")) as { data?: { id?: unknown } };
+    const accountId = body?.data?.id;
+    if (typeof accountId !== "string" || !accountId) {
+      throw new RingApiError("Ring API GET /v1/users/me returned no account id");
+    }
+    return accountId;
+  }
+
+  /**
+   * Finishes account linking for the token's user: POST
+   * /v1/accounts/me/app-integrations with the nonce from the Account Link
+   * redirect, which Ring verifies (status becomes "awaiting" and device
+   * access is activated), then PATCH with status "completed", which Ring
+   * requires before the integration is fully operational.
+   */
+  async completeAccountLink(nonce: string): Promise<void> {
+    await this.requestJson("POST", "/v1/accounts/me/app-integrations", { nonce });
+    await this.requestJson("PATCH", "/v1/accounts/me/app-integrations", { status: "completed" });
+  }
+
   /**
    * The frame a device captured at `timestampMs` (epoch milliseconds):
    * POST /v1/devices/{id}/media/image/download. Ring answers with a 303

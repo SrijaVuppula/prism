@@ -9,7 +9,7 @@ let createClient: ReturnType<typeof vi.fn>;
 
 function directory(token: string | null = "token") {
   return new RingDeviceDirectory(
-    () => token,
+    async () => token,
     createClient,
     () => now,
   );
@@ -25,7 +25,6 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
-  delete process.env.RING_ACCESS_TOKEN;
 });
 
 describe("RingDeviceDirectory.lookup", () => {
@@ -74,8 +73,16 @@ describe("RingDeviceDirectory.lookup", () => {
 });
 
 describe("RingDeviceDirectory.refresh", () => {
-  it("throws without an access token", async () => {
-    await expect(directory(null).refresh()).rejects.toThrow(/RING_ACCESS_TOKEN/);
+  it("throws without Ring access", async () => {
+    await expect(directory(null).refresh()).rejects.toThrow(/link a Ring account or set RING_ACCESS_TOKEN/);
+  });
+
+  it("forgets the cached list when invalidated", async () => {
+    const target = directory();
+    await target.lookup("dev_1");
+    target.invalidate();
+    await target.lookup("dev_1");
+    expect(listDevices).toHaveBeenCalledTimes(2);
   });
 
   it("returns the list and fills the cache", async () => {
@@ -87,19 +94,18 @@ describe("RingDeviceDirectory.refresh", () => {
 });
 
 describe("logRingConnection", () => {
-  it("says the Ring API isn't used when no token is set", async () => {
-    await logRingConnection(directory());
-    expect(console.log).toHaveBeenCalledWith(expect.stringMatching(/RING_ACCESS_TOKEN not set/));
+  it("says the Ring API isn't used when there's no Ring access", async () => {
+    await logRingConnection(directory(null), async () => null);
+    expect(console.log).toHaveBeenCalledWith(expect.stringMatching(/no linked Ring account or RING_ACCESS_TOKEN/));
     expect(listDevices).not.toHaveBeenCalled();
   });
 
   it("logs the device names when the token works, and the error when it doesn't", async () => {
-    process.env.RING_ACCESS_TOKEN = "token";
-    await logRingConnection(directory());
+    await logRingConnection(directory(), async () => "token");
     expect(console.log).toHaveBeenCalledWith("[ring] Ring API connected: 1 device(s): Front Door");
 
     listDevices.mockRejectedValue(new Error("Ring API GET /v1/devices returned 401"));
-    await logRingConnection(directory());
+    await logRingConnection(directory(), async () => "token");
     expect(console.error).toHaveBeenCalledWith("[ring] Ring API check failed:", "Ring API GET /v1/devices returned 401");
   });
 });

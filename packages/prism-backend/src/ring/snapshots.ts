@@ -8,7 +8,7 @@
 // optional image embedding, and the companion app showing it), so recent
 // downloads are kept in a small in-memory cache.
 
-import { getRingAccessToken } from "./config";
+import { getRingApiToken } from "./accessTokens";
 import { RingApiError, RingClient, type RingImage } from "./ringClient";
 
 const SCHEME = "ring:";
@@ -69,7 +69,7 @@ export interface RingSnapshotLoaderDeps {
 }
 
 const defaultDeps: RingSnapshotLoaderDeps = {
-  getToken: async () => getRingAccessToken(),
+  getToken: (accountId) => getRingApiToken(accountId),
   createClient: (token) => new RingClient(token),
   sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
 };

@@ -14,7 +14,7 @@ describe("clearHistory", () => {
   });
 
   it("never touches settings, push subscriptions, the Ring account link or migration history", () => {
-    for (const kept of ["user_preferences", "push_subscriptions", "ring_accounts", "schema_migrations"]) {
+    for (const kept of ["user_preferences", "push_subscriptions", "ring_account_links", "schema_migrations"]) {
       expect(HISTORY_TABLES).not.toContain(kept);
     }
   });

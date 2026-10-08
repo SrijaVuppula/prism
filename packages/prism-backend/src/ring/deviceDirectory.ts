@@ -1,10 +1,11 @@
 // Device names for alerts, looked up with the Ring API. Ring's webhooks
 // identify a device by id only; its name ("Front Door") comes from
 // GET /v1/devices. The list is cached so a burst of events costs one call,
-// and lookups are best-effort: with no access token configured, or when
-// Ring can't be reached, an alert just goes out without a Ring device name.
+// and lookups are best-effort: with no Ring access (no linked account and
+// no RING_ACCESS_TOKEN), or when Ring can't be reached, an alert just goes
+// out without a Ring device name.
 
-import { getRingAccessToken } from "./config";
+import { getRingApiToken } from "./accessTokens";
 import { RingApiError, RingClient, type RingDevice } from "./ringClient";
 
 const CACHE_TTL_MS = 10 * 60_000;
@@ -23,7 +24,7 @@ export class RingDeviceDirectory {
   private inFlight: Promise<Map<string, RingDevice> | null> | null = null;
 
   constructor(
-    private readonly getToken: () => string | null = getRingAccessToken,
+    private readonly getToken: () => Promise<string | null> = () => getRingApiToken(),
     private readonly createClient: (token: string) => DeviceLister = (token) => new RingClient(token),
     private readonly now: () => number = Date.now,
   ) {}
@@ -34,11 +35,17 @@ export class RingDeviceDirectory {
     return devices?.get(deviceId) ?? null;
   }
 
+  /** Forgets the cached list, e.g. after a device was added or an account linked. */
+  invalidate(): void {
+    this.devices = null;
+    this.failedAt = null;
+  }
+
   /** Fetches the device list now, bypassing the cache. Unlike lookup(), throws when Ring can't be asked. */
   async refresh(): Promise<RingDevice[]> {
-    const token = this.getToken();
+    const token = await this.getToken();
     if (!token) {
-      throw new RingApiError("RING_ACCESS_TOKEN is not set");
+      throw new RingApiError("No Ring access: link a Ring account or set RING_ACCESS_TOKEN");
     }
     const list = await this.createClient(token).listDevices();
     this.remember(list);
@@ -46,23 +53,22 @@ export class RingDeviceDirectory {
   }
 
   private load(): Promise<Map<string, RingDevice> | null> {
-    const token = this.getToken();
-    if (!token) return Promise.resolve(null);
-
     const now = this.now();
     const fresh = this.devices !== null && now - this.fetchedAt < CACHE_TTL_MS;
     const backingOff = this.failedAt !== null && now - this.failedAt < RETRY_AFTER_FAILURE_MS;
     if (fresh || backingOff) return Promise.resolve(this.devices);
 
     // Concurrent events share one request.
-    this.inFlight ??= this.fetchDevices(token).finally(() => {
+    this.inFlight ??= this.fetchDevices().finally(() => {
       this.inFlight = null;
     });
     return this.inFlight;
   }
 
-  private async fetchDevices(token: string): Promise<Map<string, RingDevice> | null> {
+  private async fetchDevices(): Promise<Map<string, RingDevice> | null> {
     try {
+      const token = await this.getToken();
+      if (!token) return null;
       this.remember(await this.createClient(token).listDevices());
     } catch (err) {
       this.failedAt = this.now();
@@ -90,16 +96,19 @@ export function getRingDeviceDirectory(): RingDeviceDirectory {
 }
 
 /**
- * Startup check: with an access token configured, lists the account's
- * devices once so a bad or expired token shows up in the log right away
- * rather than on the first event.
+ * Startup check: with Ring access available, lists the account's devices
+ * once so a bad or expired token shows up in the log right away rather
+ * than on the first event.
  */
-export async function logRingConnection(target: RingDeviceDirectory = getRingDeviceDirectory()): Promise<void> {
-  if (!getRingAccessToken()) {
-    console.log("[ring] RING_ACCESS_TOKEN not set: alerts use webhook data only (fine for the event simulator)");
-    return;
-  }
+export async function logRingConnection(
+  target: RingDeviceDirectory = getRingDeviceDirectory(),
+  getToken: () => Promise<string | null> = () => getRingApiToken(),
+): Promise<void> {
   try {
+    if (!(await getToken())) {
+      console.log("[ring] no linked Ring account or RING_ACCESS_TOKEN: alerts use webhook data only (fine for the event simulator)");
+      return;
+    }
     const devices = await target.refresh();
     const names = devices.map((device) => device.name).join(", ");
     console.log(`[ring] Ring API connected: ${devices.length} device(s)${names ? `: ${names}` : ""}`);

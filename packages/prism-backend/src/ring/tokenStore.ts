@@ -1,70 +1,118 @@
-// Postgres-backed storage for linked Ring accounts' OAuth tokens.
+// Postgres-backed storage for Ring OAuth tokens, keyed by Ring Account ID
+// (ring_account_links, migration 0011). Ring releases a token pair before
+// the user has signed in to Prism, so a pair starts out 'unclaimed' and is
+// marked 'linked' once account linking matches it (see accountLinking.ts).
 
 import type { Pool } from "pg";
 import { getPool } from "../db/pool";
-import { refreshTokens, RingTokens } from "./oauth";
+import { refreshTokens, type RingTokens } from "./oauth";
 
 // Refresh a bit before actual expiry so a request never races an
 // about-to-expire token.
 const REFRESH_SKEW_MS = 60_000;
 
+export type RingLinkStatus = "unclaimed" | "linked";
+
+export interface RingAccountTokens extends RingTokens {
+  accountId: string;
+  status: RingLinkStatus;
+}
+
 interface RingAccountRow {
+  account_id: string;
   access_token: string;
   refresh_token: string;
   expires_at: Date;
+  status: RingLinkStatus;
 }
 
-export class RingTokenStore {
-  constructor(private readonly pool: Pool) {}
+function fromRow(row: RingAccountRow): RingAccountTokens {
+  return {
+    accountId: row.account_id,
+    accessToken: row.access_token,
+    refreshToken: row.refresh_token,
+    expiresAt: row.expires_at.getTime(),
+    status: row.status,
+  };
+}
 
-  async save(userId: string, tokens: RingTokens): Promise<void> {
+const COLUMNS = "account_id, access_token, refresh_token, expires_at, status";
+
+export class RingTokenStore {
+  constructor(
+    private readonly pool: Pool,
+    private readonly refresh: (refreshToken: string) => Promise<RingTokens> = refreshTokens,
+  ) {}
+
+  /**
+   * Stores a newly exchanged token pair as unclaimed. A Ring user who
+   * reinstalls the app gets a new pair, which replaces the old one and has
+   * to be linked again.
+   */
+  async saveUnclaimed(accountId: string, tokens: RingTokens): Promise<void> {
     await this.pool.query(
-      `INSERT INTO ring_accounts (user_id, access_token, refresh_token, expires_at, updated_at)
-       VALUES ($1, $2, $3, to_timestamp($4 / 1000.0), now())
-       ON CONFLICT (user_id) DO UPDATE SET
+      `INSERT INTO ring_account_links (account_id, access_token, refresh_token, expires_at, status, received_at, linked_at, updated_at)
+       VALUES ($1, $2, $3, to_timestamp($4 / 1000.0), 'unclaimed', now(), NULL, now())
+       ON CONFLICT (account_id) DO UPDATE SET
          access_token = EXCLUDED.access_token,
          refresh_token = EXCLUDED.refresh_token,
          expires_at = EXCLUDED.expires_at,
+         status = 'unclaimed',
+         received_at = now(),
+         linked_at = NULL,
          updated_at = now()`,
-      [userId, tokens.accessToken, tokens.refreshToken, tokens.expiresAt],
+      [accountId, tokens.accessToken, tokens.refreshToken, tokens.expiresAt],
     );
   }
 
-  async get(userId: string): Promise<RingTokens | null> {
+  async listUnclaimed(): Promise<RingAccountTokens[]> {
     const result = await this.pool.query<RingAccountRow>(
-      `SELECT access_token, refresh_token, expires_at FROM ring_accounts WHERE user_id = $1`,
-      [userId],
+      `SELECT ${COLUMNS} FROM ring_account_links WHERE status = 'unclaimed' ORDER BY received_at DESC`,
     );
-    const row = result.rows[0];
-    if (!row) {
-      return null;
-    }
-    return {
-      accessToken: row.access_token,
-      refreshToken: row.refresh_token,
-      expiresAt: row.expires_at.getTime(),
-    };
+    return result.rows.map(fromRow);
   }
 
-  async delete(userId: string): Promise<void> {
-    await this.pool.query(`DELETE FROM ring_accounts WHERE user_id = $1`, [userId]);
+  async markLinked(accountId: string): Promise<void> {
+    await this.pool.query(
+      `UPDATE ring_account_links SET status = 'linked', linked_at = now(), updated_at = now() WHERE account_id = $1`,
+      [accountId],
+    );
+  }
+
+  async get(accountId: string): Promise<RingAccountTokens | null> {
+    const result = await this.pool.query<RingAccountRow>(`SELECT ${COLUMNS} FROM ring_account_links WHERE account_id = $1`, [
+      accountId,
+    ]);
+    return result.rows[0] ? fromRow(result.rows[0]) : null;
+  }
+
+  /** The most recently linked account, for calls that aren't about a specific one (e.g. listing devices). */
+  async getLatestLinked(): Promise<RingAccountTokens | null> {
+    const result = await this.pool.query<RingAccountRow>(
+      `SELECT ${COLUMNS} FROM ring_account_links WHERE status = 'linked' ORDER BY linked_at DESC LIMIT 1`,
+    );
+    return result.rows[0] ? fromRow(result.rows[0]) : null;
+  }
+
+  async delete(accountId: string): Promise<void> {
+    await this.pool.query(`DELETE FROM ring_account_links WHERE account_id = $1`, [accountId]);
   }
 
   /**
-   * Returns a currently-valid access token for the user, refreshing (and
-   * persisting the refreshed pair) first if the stored token is expired or
-   * close to it.
+   * A currently valid access token for the account, refreshing (and storing
+   * the new pair) first if the stored one has expired or is about to.
    */
-  async getValidAccessToken(userId: string): Promise<string> {
-    const tokens = await this.get(userId);
-    if (!tokens) {
-      throw new Error(`No linked Ring account for user ${userId}`);
+  async getValidAccessToken(account: RingAccountTokens): Promise<string> {
+    if (account.expiresAt - Date.now() > REFRESH_SKEW_MS) {
+      return account.accessToken;
     }
-    if (tokens.expiresAt - Date.now() > REFRESH_SKEW_MS) {
-      return tokens.accessToken;
-    }
-    const refreshed = await refreshTokens(tokens.refreshToken);
-    await this.save(userId, refreshed);
+    const refreshed = await this.refresh(account.refreshToken);
+    await this.pool.query(
+      `UPDATE ring_account_links
+       SET access_token = $2, refresh_token = $3, expires_at = to_timestamp($4 / 1000.0), updated_at = now()
+       WHERE account_id = $1`,
+      [account.accountId, refreshed.accessToken, refreshed.refreshToken, refreshed.expiresAt],
+    );
     return refreshed.accessToken;
   }
 }
