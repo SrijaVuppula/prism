@@ -13,7 +13,7 @@ Prism connects Ring's real-time event stream to an AI context layer (Bedrock mul
 ## Structure
 
 - `packages/prism-alert-engine` — Ring-agnostic core: a Bedrock classification wrapper, the Signal Score engine, and channel encoders (haptic/visual/push). Standalone and MIT-licensed; any doorbell or camera vendor could adopt it directly.
-- `packages/prism-backend` — Ring OAuth + webhook ingestion, Bedrock classification + orchestration, Postgres + pgvector event store.
+- `packages/prism-backend` — Ring account linking, webhook ingestion and Ring API calls, Bedrock classification + orchestration, Postgres + pgvector event store.
 - `apps/prism-companion-web` — the React/PWA companion app that receives alerts in real time.
 - `infra/` — the Bedrock IAM policy and AWS setup notes, and a docker-compose setup (Postgres, plus an optional containerized backend).
 - `docs/` — architecture and accessibility notes.
@@ -32,17 +32,27 @@ Open http://localhost:5173 before running `npm run seed`, and set your household
 
 ### Simulator mode (no Ring credentials)
 
-The steps above need no Ring Partner credentials. `npm run seed` signs Ring-shaped webhook events with the same `RING_WEBHOOK_SECRET` the backend uses and posts them to `POST /webhooks/ring`, with labeled photos from `packages/prism-backend/eval/fixtures` as the snapshots. From the webhook on, Bedrock classification, the Signal Score, repeat-visitor memory and delivery follow the same path as a live Ring event. The run includes a repeat visit by the first visitor (scored lower by repeat-visitor memory) and ends with a night-time visit, sent with a late-night timestamp in your time zone so it scores as Urgent whatever time you run it. Run `npm run clear-history` between runs to start from a clean slate.
+The steps above need no Ring credentials. `npm run seed` sends webhooks in Ring's v1.1 format to `POST /webhooks/ring`, signed in `X-Signature` with the same `RING_WEBHOOK_SECRET` the backend uses, with labeled photos from `packages/prism-backend/eval/fixtures` as the snapshots. From the webhook on, Bedrock classification, the Signal Score, repeat-visitor memory and delivery follow the same path as a live Ring event. The run includes a repeat visit by the first visitor (scored lower by repeat-visitor memory) and ends with a night-time visit, sent with a late-night timestamp in your time zone so it scores as Urgent whatever time you run it. Run `npm run clear-history` between runs to start from a clean slate.
 
-### Connecting to the Ring API
+### Connecting to Ring
 
-With a Ring Developer account, Prism also calls the Ring Partner API at runtime: Ring's webhooks identify a device by id only, so the backend looks up each alert's device name (e.g. "Front Door") with `GET /v1/devices`.
+Prism calls the Ring Partner API at runtime: it downloads each event's snapshot (Ring's webhooks carry no image) and looks up the device's name (e.g. "Front Door"). There are two ways to give it access.
+
+**Try the API with a Playground token** (no public URL needed):
 
 1. In the Ring Developer Console, open the **Playground** and generate an access token (valid for about 30 minutes).
 2. Add it to `packages/prism-backend/.env` as `RING_ACCESS_TOKEN=...`.
 3. Run `npm run ring:devices` to list the devices the token can see.
 
-Restart `npm run dev`, and the backend log shows `[ring] Ring API connected: ...`. To have simulated events come from one of those devices, run `SIMULATOR_DEVICE_ID=<device id> npm run seed`; the alerts then show the name the Ring API gives that device. Without a token, alerts show the simulator's own "Front Door (simulator)" label.
+Restart `npm run dev`, and the backend log shows `[ring] Ring API connected: ...`. To have simulated events come from one of those devices, run `SIMULATOR_DEVICE_ID=<device id> npm run seed`; the alerts then show the name the Ring API gives that device.
+
+**Link a Ring account** for live doorbell events. Ring calls Prism's backend, so it has to be reachable over public HTTPS -- deployed, or through a tunnel such as `cloudflared tunnel --url http://localhost:3000`.
+
+1. In `packages/prism-backend/.env`, set `RING_CLIENT_ID`, `RING_CLIENT_SECRET`, `RING_WEBHOOK_SECRET` (the app's HMAC signing key) and a `RING_LINK_PASSCODE` of your choice, then restart the backend.
+2. In the Ring Developer Portal, under your app's **Account linking**, set the Account Link URL to `https://<your-host>/ring/link`, the Token Exchange URL to `https://<your-host>/ring/token-exchange` and the Webhook URL to `https://<your-host>/webhooks/ring`.
+3. Enable the app from the Ring app. Ring sends Prism an authorization code, then opens Prism's link page, where you enter the passcode.
+
+From then on, doorbell presses and motion events arrive as signed webhooks, and each alert is classified from the snapshot Prism downloads from Ring. See `docs/ARCHITECTURE.md` for how the linking, webhooks and snapshot downloads work.
 
 ### Other commands
 
@@ -62,7 +72,7 @@ Known-visitor tagging is a separate, **strictly opt-in** feature, off by default
 
 ## Status
 
-Ring OAuth account linking, HMAC-verified webhook ingestion (normalized into a shared event schema and persisted), and the Signal Score engine are built and tested. Bedrock classification is wired end to end from the webhook receiver through the Signal Score engine to a channel decision, and alongside it the backend calls the Ring Partner API to name the device behind each alert. Real-time delivery is live: a WebSocket server broadcasts scored events to the companion web app, and Web Push notifications reach subscribed devices even when the app isn't in focus. Measured WebSocket delivery latency (`npm run measure-delivery-latency`) is sub-millisecond locally -- see `docs/ARCHITECTURE.md` for the methodology and numbers. The companion app itself renders the visual context card and triggers the haptic pattern for each alert.
+The Ring integration follows Ring's Partner API documentation: one-way account linking (token exchange, the signed-nonce Account Link page, token refresh), v1.1 webhook ingestion (X-Signature verification, deduplication), snapshot downloads and device lookups through the Ring API. It is covered by tests and exercised end to end with the event simulator, but has not yet been run against a live Ring account. The Signal Score engine is built and tested. Bedrock classification is wired end to end from the webhook receiver through the Signal Score engine to a channel decision. Real-time delivery is live: a WebSocket server broadcasts scored events to the companion web app, and Web Push notifications reach subscribed devices even when the app isn't in focus. Measured WebSocket delivery latency (`npm run measure-delivery-latency`) is sub-millisecond locally -- see `docs/ARCHITECTURE.md` for the methodology and numbers. The companion app itself renders the visual context card and triggers the haptic pattern for each alert.
 
 Personalization and session memory are also built and tested: repeat-visitor memory (Bedrock embeddings + pgvector similarity search, scoped to a rolling per-device session window), per-household preferences (quiet hours, haptic overrides, the known-visitor-tagging opt-in), and a feedback loop that adjusts Signal Score category weights from accumulated thumbs up/down votes.
 

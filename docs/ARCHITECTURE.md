@@ -4,12 +4,13 @@
 
 ```
 Ring device/simulator
-   │  webhook (ding / motion / person / package)
+   │  v1.1 webhook (button_press / motion_detected + sub_type), X-Signature
    ▼
-prism-backend :: webhookHandler.ts
-   │  HMAC verify → normalize → PrismEvent
+prism-backend :: ring/webhookHandler.ts
+   │  HMAC verify → validate → PrismEvent (snapshot = ring:// reference)
    ▼
 prism-backend :: bedrock/multimodalContext.ts
+   │  snapshot: ring/snapshots.ts → Ring API image download (simulator: fixture photo)
    │  snapshot + prompt → { category, description, confidence }
    ▼
 prism-alert-engine :: scoring.ts
@@ -35,26 +36,78 @@ apps/prism-companion-web
 - `prism-backend` owns every Ring- and Bedrock-specific call, so there's one place to look to confirm the Ring API is actually called at runtime.
 - `prism-companion-web` is the only piece you need to open in a browser to see and feel the result.
 
-## Ring API calls
+## Ring integration
 
-Besides receiving webhooks, the backend calls the Ring Partner API
-(`ring/ringClient.ts`, base URL `https://api.amazonvision.com` -- the
-endpoint Ring's own sample app, `github.com/AmazonAppDev/ring-api-helloworld`,
-uses). Ring's webhooks identify a device by id only, so for each event with
-a device id the pipeline looks up the device's name with `GET /v1/devices`
-and sends it with the alert ("Front Door · Person · 95% confidence"). The
-lookup runs alongside Bedrock classification, so it adds no latency, and
-`ring/deviceDirectory.ts` caches the device list for ten minutes so a burst
-of events costs one call. It's best-effort like the other enrichment steps:
-with no access token, or when Ring can't be reached (it waits a minute after
-a failure before asking again), the alert goes out with the event's own
-device label instead -- for the simulator, "Front Door (simulator)".
+Everything Ring-specific lives in `prism-backend/src/ring` and follows Ring's
+Partner API documentation (developer.amazon.com/docs/ring/api-documentation.html):
+the Ring API at `https://api.amazonvision.com` and the OAuth server at
+`https://oauth.ring.com`, both called server-to-server only.
 
-The access token comes from `RING_ACCESS_TOKEN`; the Ring Developer
-Playground issues ones valid for about 30 minutes. At startup the backend
-lists the account's devices once and logs the result, so a missing or
-expired token shows up immediately, and `npm run ring:devices` runs the
-same call from the command line.
+**Webhooks** (`webhookHandler.ts`, `routes.ts`). Ring POSTs v1.1 payloads --
+`meta` (`version`, `time`, `request_id`, `account_id`) plus a JSON:API
+`data` object -- signed in `X-Signature: sha256=<hex>`, an HMAC-SHA256 of the
+raw body keyed with the app's HMAC signing key (`RING_WEBHOOK_SECRET`). The
+signature is checked on the raw bytes before parsing. `button_press` becomes
+a doorbell alert; `motion_detected` uses Ring's Smart Alerts `sub_type`
+(`human`, `package_delivery`, `vehicle`) when the device has it. Ring treats
+a 4xx as permanent and retries a 5xx, so malformed payloads get a 400,
+storage failures a 500, and a stored event a 200 before classification
+starts, well inside Ring's 5-second limit. Ring may deliver an event more
+than once; the event id is the primary key of `ring_events`, so a
+redelivery is acknowledged without running the pipeline again. Other event
+types are acknowledged without an alert; `app_integration_removed` deletes
+that account's tokens.
+
+**Snapshots** (`snapshots.ts`). Ring's webhooks carry no image, so a Ring
+event's `snapshotUrl` is a `ring://devices/<id>/snapshot?at=<ms>&account=<id>`
+reference, which the shared snapshot loader resolves with
+`POST /v1/devices/{id}/media/image/download` (an `at_timestamp` request,
+following Ring's 303 redirect to a pre-signed image URL). Right after an
+event the recording may not be stored yet, so a 425 `RECORDING_NOT_READY`
+is retried with backoff for up to 15 seconds. Classification, the optional
+image embedding and the companion app all read the same snapshot, so recent
+downloads are cached. If the snapshot can't be downloaded or classified, a
+doorbell press (or a person, package or vehicle Ring itself detected) still
+produces an alert from Ring's event type -- "Someone pressed the doorbell.
+No snapshot was available to describe them." -- and repeat-visitor memory
+is skipped for it, since that description says nothing about who was
+there. The event simulator sends the same v1.1 webhooks, with its fixture
+photo and "Front Door (simulator)" label in a `simulator` attribute real
+webhooks never carry.
+
+**Device names** (`deviceDirectory.ts`). Webhooks identify a device by id
+only, so for each event the pipeline looks up the device's name with
+`GET /v1/devices` and sends it with the alert ("Front Door · Person · 95%
+confidence"). The lookup runs alongside Bedrock classification, so it adds
+no latency, and the device list is cached for ten minutes. It's best-effort
+like the other enrichment steps: with no Ring access, or when Ring can't be
+reached (it waits a minute after a failure before asking again), the alert
+goes out with the event's own label instead. At startup the backend lists
+the account's devices once and logs the result, and `npm run ring:devices`
+runs the same call from the command line.
+
+**Account linking** (`accountLinking.ts`, `routes.ts`, `tokenStore.ts`).
+Ring's one-way account linking: when a Ring user enables Prism, Ring POSTs
+an authorization code to Prism's Token Exchange URL (`/ring/token-exchange`).
+Prism exchanges it at `https://oauth.ring.com/oauth/token` within the
+60 seconds it's valid, reads the user's Account ID from `GET /v1/users/me`,
+and stores the token pair as unclaimed in `ring_account_links`. Ring then
+redirects the user to Prism's Account Link URL (`/ring/link`) with `time`
+and `nonce`. Ring requires the user to sign in there; Prism has no user
+accounts, so the household signs in with `RING_LINK_PASSCODE`. Only then
+does Prism check that the redirect is under 10 minutes old and recompute
+the nonce -- HMAC-SHA256 over `"<time>:<account_id>"` with the signing key,
+URL-safe Base64 without padding -- for each unclaimed account. The match is
+confirmed to Ring with `POST /v1/accounts/me/app-integrations` (nonce) and
+`PATCH` (status `completed`) and marked linked. Access tokens last about
+4 hours and are refreshed when they're about to expire; refresh tokens last
+about 30 days.
+
+**Access tokens** (`accessTokens.ts`). Ring API calls use `RING_ACCESS_TOKEN`
+when it's set -- the Ring Developer Playground issues tokens valid for about
+30 minutes, handy for trying the API without linking -- and otherwise the
+event's linked account's token (or the most recently linked account's, for
+calls not about a specific event).
 
 ## Orchestration design
 
