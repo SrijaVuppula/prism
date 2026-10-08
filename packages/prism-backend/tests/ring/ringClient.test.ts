@@ -58,3 +58,47 @@ describe("RingClient.listDevices", () => {
     await expect(notJson.listDevices()).rejects.toBeInstanceOf(RingApiError);
   });
 });
+
+describe("RingClient.downloadImage", () => {
+  it("POSTs an at_timestamp request and returns the image the redirect leads to", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(new Response(Buffer.from([0xff, 0xd8, 0xff]), { status: 200, headers: { "Content-Type": "image/jpeg" } }));
+    const client = new RingClient("token-123", "https://api.example.test", fetchImpl);
+
+    const image = await client.downloadImage("ava1.ring.device.a", 1786715596787);
+
+    const [url, init] = fetchImpl.mock.calls[0];
+    expect(String(url)).toBe("https://api.example.test/v1/devices/ava1.ring.device.a/media/image/download");
+    expect(init.method).toBe("POST");
+    expect(init.headers).toMatchObject({ Authorization: "Bearer token-123", "Content-Type": "application/json" });
+    expect(JSON.parse(init.body)).toEqual({
+      type: "at_timestamp",
+      timestamp: 1786715596787,
+      image_options: { format: "jpeg" },
+    });
+    expect(image).toEqual({ bytes: Buffer.from([0xff, 0xd8, 0xff]), mediaType: "image/jpeg" });
+  });
+
+  it("names the camera module on a multi-camera device", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(Buffer.from([1]), { status: 200 }));
+    const client = new RingClient("t", "https://api.example.test", fetchImpl);
+
+    const image = await client.downloadImage("dev", 1, "1");
+
+    expect(JSON.parse(fetchImpl.mock.calls[0][1].body).components).toEqual([{ component_id: "1" }]);
+    expect(image.mediaType).toBe("image/jpeg");
+  });
+
+  it("reports Ring's error code, e.g. a recording that isn't ready yet", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse({ errors: [{ status: "425", code: "RECORDING_NOT_READY", detail: "not yet" }] }, 425),
+    );
+    const client = new RingClient("t", "https://api.example.test", fetchImpl);
+
+    const error = await client.downloadImage("dev", 1).catch((err: unknown) => err);
+
+    expect(error).toBeInstanceOf(RingApiError);
+    expect(error).toMatchObject({ status: 425, code: "RECORDING_NOT_READY" });
+  });
+});

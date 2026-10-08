@@ -14,6 +14,7 @@ import {
 } from "@aws-sdk/client-bedrock-runtime";
 import type { Classifier, ClassificationResult, EventCategory } from "prism-alert-engine";
 import { getBedrockConfig } from "./config";
+import { getRingSnapshotLoader, isRingSnapshotUrl } from "../ring/snapshots";
 
 export class BedrockClassificationError extends Error {
   constructor(
@@ -88,13 +89,22 @@ function mediaTypeFromExtension(url: string): string {
 }
 
 /**
- * Loads the snapshot's raw bytes. Supports plain http(s) URLs (the normal
- * case for a Ring snapshot_url) and file:// URLs, so local fixture images
- * -- e.g. for the eval harness in ../../eval -- don't need to be hosted
- * over HTTP to be classified. Also used by events/routes.ts to serve the
- * snapshot to the companion app.
+ * Loads the snapshot's raw bytes. Supports ring:// references (a real Ring
+ * event's frame, downloaded with the Ring API -- see ring/snapshots.ts),
+ * plain http(s) URLs, and file:// URLs, so local fixture images -- e.g. for
+ * the eval harness in ../../eval and the event simulator -- don't need to be
+ * hosted over HTTP to be classified. Also used by events/routes.ts to serve
+ * the snapshot to the companion app.
  */
 export async function loadSnapshotBytes(snapshotUrl: string): Promise<{ bytes: Buffer; mediaType: string }> {
+  if (isRingSnapshotUrl(snapshotUrl)) {
+    try {
+      return await getRingSnapshotLoader().load(snapshotUrl);
+    } catch (err) {
+      throw new BedrockClassificationError(`Failed to download the Ring snapshot ${snapshotUrl}`, err);
+    }
+  }
+
   if (snapshotUrl.startsWith("file://")) {
     const bytes = await readFile(fileURLToPath(snapshotUrl));
     return { bytes, mediaType: mediaTypeFromExtension(snapshotUrl) };

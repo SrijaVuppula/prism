@@ -12,12 +12,20 @@ vi.mock("node:fs/promises", async (importOriginal) => {
   return { ...actual, readFile: vi.fn() };
 });
 
+const ringSnapshotLoad = vi.fn();
+vi.mock("../../src/ring/snapshots", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../src/ring/snapshots")>();
+  return { ...actual, getRingSnapshotLoader: () => ({ load: ringSnapshotLoad }) };
+});
+
 import { readFile } from "node:fs/promises";
 import {
   BedrockClassificationError,
   BedrockClassifier,
   classifySnapshot,
+  loadSnapshotBytes,
 } from "../../src/bedrock/multimodalContext";
+import { ringSnapshotUrl } from "../../src/ring/snapshots";
 
 const ENV = {
   BEDROCK_REGION: "us-east-1",
@@ -143,6 +151,21 @@ describe("classifySnapshot", () => {
     await expect(classifySnapshot("https://cdn.ring.com/snap/evt_8.jpg")).rejects.toBeInstanceOf(
       BedrockClassificationError,
     );
+  });
+});
+
+describe("loadSnapshotBytes for Ring events", () => {
+  const url = ringSnapshotUrl({ deviceId: "dev", timestamp: 1000 });
+
+  it("downloads ring:// snapshots with the Ring API", async () => {
+    ringSnapshotLoad.mockResolvedValue({ bytes: Buffer.from([1]), mediaType: "image/jpeg" });
+    expect(await loadSnapshotBytes(url)).toEqual({ bytes: Buffer.from([1]), mediaType: "image/jpeg" });
+    expect(ringSnapshotLoad).toHaveBeenCalledWith(url);
+  });
+
+  it("reports a failed download as a classification error", async () => {
+    ringSnapshotLoad.mockRejectedValue(new Error("416 MEDIA_NOT_FOUND"));
+    await expect(loadSnapshotBytes(url)).rejects.toBeInstanceOf(BedrockClassificationError);
   });
 });
 
