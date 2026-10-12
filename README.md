@@ -82,4 +82,4 @@ The companion app targets WCAG 2.2 AA, per the Ring Partner API guideline. An au
 
 ## License
 
-MIT — see [LICENSE](./LICENSE).
+MIT — see [LICENSE](./LICENSE). The evaluation fixture photos are from Pexels, under the Pexels License — see [CREDITS.md](./CREDITS.md).
