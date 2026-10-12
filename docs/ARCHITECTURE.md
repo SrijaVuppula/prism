@@ -63,10 +63,16 @@ event's `snapshotUrl` is a `ring://devices/<id>/snapshot?at=<ms>&account=<id>`
 reference, which the shared snapshot loader resolves with
 `POST /v1/devices/{id}/media/image/download` (an `at_timestamp` request,
 following Ring's 303 redirect to a pre-signed image URL). Right after an
-event the recording may not be stored yet, so a 425 `RECORDING_NOT_READY`
-is retried with backoff for up to 15 seconds. Classification, the optional
+event the recording may not be stored yet, so a 416 `MEDIA_NOT_FOUND` or
+425 `RECORDING_NOT_READY` is retried on Ring's schedule (5, 10, 20 and 30
+seconds, with up to 10% jitter). Ring suggests retrying for up to 2
+minutes, but the alert waits on this download, so Prism gives up after
+about 20 seconds. A 416 more than 2 minutes after the event isn't retried,
+since Ring treats that media as unavailable. Classification, the optional
 image embedding and the companion app all read the same snapshot, so recent
-downloads are cached. If the snapshot can't be downloaded or classified, a
+downloads are cached. Failed downloads aren't cached, so the companion app
+can still load a picture that became ready after the alert went out. If the
+snapshot can't be downloaded or classified, a
 doorbell press (or a person, package or vehicle Ring itself detected) still
 produces an alert from Ring's event type -- "Someone pressed the doorbell.
 No snapshot was available to describe them." -- and repeat-visitor memory

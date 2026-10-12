@@ -56,22 +56,42 @@ export function parseRingSnapshotUrl(value: string): RingSnapshotRef | null {
 }
 
 /**
- * Waits before retrying when Ring answers 425 RECORDING_NOT_READY: right
- * after an event the recording the frame comes from may not be stored yet.
+ * Right after an event, the recording the frame comes from may not be
+ * stored yet, and Ring answers 416 MEDIA_NOT_FOUND or 425
+ * RECORDING_NOT_READY. Ring's docs say to retry those on this schedule
+ * (then every 30 seconds), with up to 10% jitter on each wait.
  */
-const NOT_READY_RETRY_DELAYS_MS = [1000, 2000, 4000, 8000];
+const RETRYABLE_STATUSES = new Set([416, 425]);
+const RETRY_SCHEDULE_MS = [5_000, 10_000, 20_000, 30_000];
+const RETRY_JITTER = 0.1;
+/**
+ * Ring suggests retrying for up to 2 minutes, but the alert waits on the
+ * download, so Prism stops retrying after about 20 seconds and the alert
+ * goes out using Ring's event type instead (see agentOrchestration.ts).
+ * Failures aren't cached, so a later read, such as the companion app
+ * loading the picture, downloads again.
+ */
+const RETRY_BUDGET_MS = 20_000;
+/** After this long, Ring treats missing media for an event as unavailable for good. */
+const MEDIA_READY_WINDOW_MS = 120_000;
 const CACHE_SIZE = 32;
 
 export interface RingSnapshotLoaderDeps {
   getToken: (accountId?: string) => Promise<string | null>;
   createClient: (token: string) => Pick<RingClient, "downloadImage">;
   sleep: (ms: number) => Promise<void>;
+  /** Epoch milliseconds, comparable with a Ring event's timestamp. */
+  now: () => number;
+  /** A number in [0, 1), for the retry jitter. */
+  random: () => number;
 }
 
 const defaultDeps: RingSnapshotLoaderDeps = {
   getToken: (accountId) => getRingApiToken(accountId),
   createClient: (token) => new RingClient(token),
   sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  now: () => Date.now(),
+  random: () => Math.random(),
 };
 
 export class RingSnapshotLoader {
@@ -86,7 +106,9 @@ export class RingSnapshotLoader {
     const pending = this.download(snapshotUrl);
     this.cache.set(snapshotUrl, pending);
     // Failures aren't cached, so the next reader tries again.
-    pending.catch(() => this.cache.delete(snapshotUrl));
+    pending.catch(() => {
+      if (this.cache.get(snapshotUrl) === pending) this.cache.delete(snapshotUrl);
+    });
     while (this.cache.size > CACHE_SIZE) {
       this.cache.delete(this.cache.keys().next().value!);
     }
@@ -103,14 +125,18 @@ export class RingSnapshotLoader {
       throw new RingApiError("No Ring access token to download the snapshot with (link a Ring account or set RING_ACCESS_TOKEN)");
     }
     const client = this.deps.createClient(token);
+    const deadline = Math.min(this.deps.now() + RETRY_BUDGET_MS, ref.timestamp + MEDIA_READY_WINDOW_MS);
 
     for (let attempt = 0; ; attempt += 1) {
       try {
         return await client.downloadImage(ref.deviceId, ref.timestamp, ref.componentId);
       } catch (err) {
-        const notReady = err instanceof RingApiError && err.status === 425;
-        if (!notReady || attempt >= NOT_READY_RETRY_DELAYS_MS.length) throw err;
-        await this.deps.sleep(NOT_READY_RETRY_DELAYS_MS[attempt]);
+        const retryable = err instanceof RingApiError && err.status !== undefined && RETRYABLE_STATUSES.has(err.status);
+        if (!retryable) throw err;
+        const scheduled = RETRY_SCHEDULE_MS[Math.min(attempt, RETRY_SCHEDULE_MS.length - 1)];
+        const delay = scheduled + this.deps.random() * scheduled * RETRY_JITTER;
+        if (this.deps.now() + delay > deadline) throw err;
+        await this.deps.sleep(delay);
       }
     }
   }
