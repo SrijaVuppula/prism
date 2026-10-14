@@ -1000,6 +1000,26 @@ button:disabled {
   color: var(--muted);
 }
 
+/* ---------- Test visitor ---------- */
+
+.test-visitor {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 14px;
+}
+
+.test-visitor__status {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.test-visitor__status:empty {
+  display: none;
+}
+
 /* ---------- Catch up ---------- */
 
 .catch-up {

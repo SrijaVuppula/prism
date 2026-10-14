@@ -3,7 +3,8 @@
 // details beside it, a "Catch up" summary of what happened while the app
 // was closed, a summary and short history of earlier alerts, and a Settings
 // toggle for personalization preferences (quiet hours, known-visitor
-// tagging, haptic overrides) and the household's data.
+// tagging, haptic overrides) and the household's data. A "Send a test
+// visitor" button shows each kind of alert without a real visitor.
 
 import { useState } from "react";
 import { AlertDetails } from "../components/AlertDetails";
@@ -15,6 +16,7 @@ import { ContextCard } from "../components/ContextCard";
 import { EnablePushButton } from "../components/EnablePushButton";
 import { PrismMark } from "../components/PrismMark";
 import { SettingsPanel } from "../components/SettingsPanel";
+import { TestVisitorButton } from "../components/TestVisitorButton";
 import { useLastSeen } from "../hooks/useLastSeen";
 import { useRealtimeEvents } from "../hooks/useRealtimeEvents";
 import { useVibration } from "../hooks/useVibration";
@@ -87,6 +89,7 @@ export function HomePage() {
                   the way it matters:
                 </p>
                 <ClassGuide />
+                <TestVisitorButton />
               </div>
             )}
           </section>
@@ -98,6 +101,7 @@ export function HomePage() {
               <section aria-label="How alerts are delivered">
                 <h2 className="section-title">How alerts are delivered</h2>
                 <ClassGuide />
+                <TestVisitorButton />
               </section>
             )}
           </div>

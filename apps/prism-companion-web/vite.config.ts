@@ -20,6 +20,7 @@ export default defineConfig({
       "/events": BACKEND_ORIGIN,
       "/data": BACKEND_ORIGIN,
       "/catch-up": BACKEND_ORIGIN,
+      "/test-visitor": BACKEND_ORIGIN,
       "/health": BACKEND_ORIGIN,
     },
   },

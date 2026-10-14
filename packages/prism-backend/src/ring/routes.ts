@@ -153,8 +153,7 @@ ringRouter.post(
     try {
       webhookSecret = getRingWebhookSecret();
     } catch (err) {
-      // Express 4 doesn't catch errors thrown from async handlers; without
-      // this a missing secret would leave the request hanging.
+      // A missing secret is a server problem: answer 500 so Ring retries.
       next(err);
       return;
     }
@@ -188,27 +187,31 @@ ringRouter.post(
       return;
     }
 
-    let stored: boolean;
+    let started: boolean;
     try {
-      stored = await getRingEventStore().save(alert.event, alert.kind, webhook);
+      started = await startAlert(alert, webhook);
     } catch (err) {
       next(err);
       return;
     }
-    if (!stored) {
-      // A redelivery of an event already being handled.
-      res.status(200).json({ status: "duplicate", eventId: alert.event.id });
-      return;
-    }
-    res.status(200).json({ status: "accepted", eventId: alert.event.id });
-
-    // Runs after the response, since Ring expects one within 5 seconds and
-    // classification takes longer. Errors are logged rather than surfaced
-    // to Ring, which has no way to act on them and would otherwise retry a
-    // webhook that was already accepted and stored.
-    const { event, deviceName, fallbackClassification } = alert;
-    runPipeline(event, undefined, { deviceName, fallbackClassification }).catch((err) => {
-      console.error(`[orchestration] pipeline failed for event ${event.id}:`, err);
-    });
+    // A redelivery of an event already being handled is acknowledged too.
+    res.status(200).json({ status: started ? "accepted" : "duplicate", eventId: alert.event.id });
   },
 );
+
+/**
+ * Stores an alert's event and starts the pipeline for it without waiting:
+ * Ring expects a webhook answered within 5 seconds, and classification takes
+ * longer. Pipeline errors are logged rather than surfaced, since Ring has no
+ * way to act on them and would otherwise retry a webhook that was already
+ * accepted and stored. Returns false, starting nothing, for an event that
+ * was already stored.
+ */
+export async function startAlert(alert: RingAlert, raw: unknown): Promise<boolean> {
+  if (!(await getRingEventStore().save(alert.event, alert.kind, raw))) return false;
+  const { event, deviceName, fallbackClassification } = alert;
+  runPipeline(event, undefined, { deviceName, fallbackClassification }).catch((err) => {
+    console.error(`[orchestration] pipeline failed for event ${event.id}:`, err);
+  });
+  return true;
+}

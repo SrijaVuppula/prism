@@ -30,7 +30,7 @@ npm run dev          # backend on :3000, companion app on http://localhost:5173
 npm run seed         # in a second terminal: replay five simulated doorbell events
 ```
 
-Open http://localhost:5173 before running `npm run seed`, and set your household time zone under **Settings** (it starts as UTC): quiet hours, the late-night factor in the Signal Score, and alert times all use it. Each event arrives as a context card with its Signal Class. Notable and Urgent events also vibrate on Android Chrome, and once push is enabled in the app, Urgent events send a Web Push notification.
+Open http://localhost:5173 before running `npm run seed`, or skip the second terminal and press **Send a test visitor** in the app, which sends the same events one at a time. Set your household time zone under **Settings** (it starts as UTC): quiet hours, the late-night factor in the Signal Score, and alert times all use it. Each event arrives as a context card with its Signal Class. Notable and Urgent events also vibrate on Android Chrome, and once push is enabled in the app, Urgent events send a Web Push notification.
 
 ### Simulator mode (no Ring credentials)
 
