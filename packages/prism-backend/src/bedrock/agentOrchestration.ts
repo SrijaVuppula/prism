@@ -46,6 +46,7 @@ import { DEFAULT_PREFERENCES, getPreferencesStore, type UserPreferences } from "
 import { isWithinQuietHours } from "../preferences/quietHours";
 import { hourInTimeZone } from "../preferences/timeZone";
 import { getRingDeviceDirectory } from "../ring/deviceDirectory";
+import { getAlertHistoryStore } from "../db/alertHistoryStore";
 
 /**
  * Context inputs to the Signal Score engine that don't come from
@@ -216,17 +217,25 @@ async function resolveDevice(event: PrismEvent, fallbackName?: string): Promise<
 }
 
 /**
- * Pushes the scored event to connected companion clients over WebSocket and,
- * when the channel decision calls for it, dispatches Web Push. Both are
- * best-effort -- a failure here is logged and swallowed rather than
+ * Pushes the scored event to connected companion clients over WebSocket,
+ * stores it as delivered, and, when the channel decision calls for it,
+ * dispatches Web Push. All three are best-effort -- a failure here is logged and swallowed rather than
  * rethrown, since the classification and scoring already succeeded and
  * shouldn't be reported as a pipeline failure just because delivery hiccuped.
  */
 async function dispatch(scoredEvent: PrismEvent, channels: ChannelPayloads, device?: CompanionDevice): Promise<void> {
+  const message = { type: "prism-event" as const, event: scoredEvent, channels, ...(device ? { device } : {}) };
   try {
-    broadcastEvent({ type: "prism-event", event: scoredEvent, channels, ...(device ? { device } : {}) });
+    broadcastEvent(message);
   } catch (err) {
     console.error(`[orchestration] WebSocket broadcast failed for event ${scoredEvent.id}:`, err);
+  }
+
+  // Kept for the app's history and the catch-up summary.
+  try {
+    await getAlertHistoryStore().save(message);
+  } catch (err) {
+    console.error(`[orchestration] couldn't store the delivered alert for event ${scoredEvent.id}:`, err);
   }
 
   if (channels.push) {

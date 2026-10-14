@@ -2,7 +2,7 @@
 // alert as a live-announced context card with its score and delivery
 // details beside it, a summary and short history of earlier alerts, and a
 // Settings toggle for personalization preferences (quiet hours,
-// known-visitor tagging, haptic overrides).
+// known-visitor tagging, haptic overrides) and the household's data.
 
 import { useState } from "react";
 import { AlertDetails } from "../components/AlertDetails";
@@ -18,8 +18,9 @@ import { useVibration } from "../hooks/useVibration";
 import { usePreferences } from "../hooks/usePreferences";
 
 export function HomePage() {
-  const { status, events, latestEvent, clear: clearEvents } = useRealtimeEvents();
-  useVibration(latestEvent);
+  const { status, events, latestEvent, latestLiveEvent, clear: clearEvents } = useRealtimeEvents();
+  // Only alerts that arrive while the app is open vibrate, not ones loaded from history.
+  useVibration(latestLiveEvent);
   const { preferences, loading: preferencesLoading } = usePreferences();
   // Until preferences load, show times in this device's zone rather than the UTC default.
   const timeZone = preferencesLoading ? undefined : preferences.timeZone;

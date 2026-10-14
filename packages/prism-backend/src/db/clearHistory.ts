@@ -1,6 +1,6 @@
-// Clears alert history so a demo or test run starts fresh: stored events,
-// repeat-visitor memory, alert feedback (and with it the feedback-adjusted
-// scoring weights), and visitor tags. The household's settings, push
+// Clears alert history so a demo or test run starts fresh: stored events
+// and the alerts delivered for them, repeat-visitor memory, alert feedback
+// (and with it the feedback-adjusted scoring weights), and visitor tags. The household's settings, push
 // subscriptions and linked Ring account are kept.
 //
 // Usage: npm run clear-history (DATABASE_URL comes from the environment or
@@ -10,7 +10,7 @@ import type { Pool } from "pg";
 import { loadEnv } from "../loadEnv";
 import { getPool } from "./pool";
 
-export const HISTORY_TABLES = ["ring_events", "event_embeddings", "alert_feedback", "known_visitor_tags"];
+export const HISTORY_TABLES = ["ring_events", "delivered_alerts", "event_embeddings", "alert_feedback", "known_visitor_tags"];
 
 export async function clearHistory(pool: Pool): Promise<void> {
   await pool.query(`TRUNCATE ${HISTORY_TABLES.join(", ")}`);

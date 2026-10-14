@@ -52,6 +52,9 @@ vi.mock("../../src/bedrock/repeatVisitorMemory", () => ({
 vi.mock("../../src/db/eventStore", () => ({
   getRingEventStore: vi.fn(),
 }));
+vi.mock("../../src/db/alertHistoryStore", () => ({
+  getAlertHistoryStore: () => ({ save: async () => {} }),
+}));
 
 import { classifySnapshot } from "../../src/bedrock/multimodalContext";
 import { broadcastEvent } from "../../src/api/websocket";

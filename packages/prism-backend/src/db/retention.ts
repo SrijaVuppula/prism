@@ -1,8 +1,9 @@
-// How long alert history is kept. Events, repeat-visitor memory and
-// feedback older than HISTORY_RETENTION_DAYS (default 30) are deleted
-// automatically, along with visitor tags left with no stored visit. The
-// household's settings, push subscriptions and Ring account link aren't
-// history and are kept. See docs/PRIVACY.md.
+// How long alert history is kept. Events (and with them the alerts
+// delivered for them), repeat-visitor memory and feedback older than
+// HISTORY_RETENTION_DAYS (default 30) are deleted automatically, along with
+// visitor tags left with no stored visit. The household's settings, push
+// subscriptions and Ring account link aren't history and are kept. See
+// docs/PRIVACY.md.
 
 import type { Pool } from "pg";
 import { getPool } from "./pool";

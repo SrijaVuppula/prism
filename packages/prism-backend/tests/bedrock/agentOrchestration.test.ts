@@ -24,6 +24,9 @@ vi.mock("../../src/bedrock/repeatVisitorMemory", () => ({
 vi.mock("../../src/ring/deviceDirectory", () => ({
   getRingDeviceDirectory: vi.fn(),
 }));
+vi.mock("../../src/db/alertHistoryStore", () => ({
+  getAlertHistoryStore: vi.fn(),
+}));
 
 import { classifySnapshot } from "../../src/bedrock/multimodalContext";
 import { broadcastEvent } from "../../src/api/websocket";
@@ -32,9 +35,11 @@ import { getPreferencesStore, DEFAULT_PREFERENCES } from "../../src/preferences/
 import { resolveSignalScoreWeights } from "../../src/feedback/weightAdjustment";
 import { resolveRepeatVisitor } from "../../src/bedrock/repeatVisitorMemory";
 import { getRingDeviceDirectory } from "../../src/ring/deviceDirectory";
+import { getAlertHistoryStore } from "../../src/db/alertHistoryStore";
 import { DEFAULT_ORCHESTRATION_CONTEXT, runPipeline } from "../../src/bedrock/agentOrchestration";
 
 const ringLookup = vi.fn();
+const saveAlert = vi.fn();
 
 function baseEvent(occurredAt: string): PrismEvent {
   return {
@@ -55,6 +60,8 @@ beforeEach(() => {
   vi.mocked(resolveSignalScoreWeights).mockReset().mockResolvedValue(DEFAULT_SIGNAL_SCORE_WEIGHTS);
   ringLookup.mockReset().mockResolvedValue(null);
   vi.mocked(getRingDeviceDirectory).mockReturnValue({ lookup: ringLookup } as never);
+  saveAlert.mockReset().mockResolvedValue(undefined);
+  vi.mocked(getAlertHistoryStore).mockReturnValue({ save: saveAlert } as never);
   vi.mocked(resolveRepeatVisitor)
     .mockReset()
     .mockResolvedValue({ repeatVisitCount: 0, isKnownVisitor: false, visitorGroupId: "group_1" });
@@ -168,6 +175,32 @@ describe("runPipeline", () => {
     expect(result.channels.push).toBeDefined();
     expect(broadcastEvent).not.toHaveBeenCalled();
     expect(dispatchPushNotifications).not.toHaveBeenCalled();
+  });
+
+  it("stores each delivered alert, exactly as broadcast, for the app's history", async () => {
+    vi.mocked(classifySnapshot).mockResolvedValue({ category: "package", description: "A box on the step.", confidence: 0.9 });
+
+    await runPipeline(baseEvent("2026-01-01T14:00:00.000Z"));
+
+    expect(saveAlert).toHaveBeenCalledTimes(1);
+    expect(saveAlert).toHaveBeenCalledWith(vi.mocked(broadcastEvent).mock.calls[0][0]);
+    expect(saveAlert.mock.calls[0][0]).toMatchObject({ type: "prism-event", event: { id: "evt_1" } });
+  });
+
+  it("still delivers when the alert can't be stored, and stores nothing when delivery is skipped", async () => {
+    vi.mocked(classifySnapshot).mockResolvedValue({ category: "person", description: "A visitor.", confidence: 0.95 });
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    saveAlert.mockRejectedValue(new Error("db down"));
+
+    const result = await runPipeline(baseEvent("2026-01-01T23:00:00.000Z"));
+    expect(result.event.scoring?.signalClass).toBe("Urgent");
+    expect(dispatchPushNotifications).toHaveBeenCalled();
+    expect(error).toHaveBeenCalledWith(expect.stringMatching(/couldn't store the delivered alert/), expect.any(Error));
+
+    saveAlert.mockClear();
+    await runPipeline(baseEvent("2026-01-01T23:00:00.000Z"), DEFAULT_ORCHESTRATION_CONTEXT, { deliver: false });
+    expect(saveAlert).not.toHaveBeenCalled();
+    error.mockRestore();
   });
 
   it("propagates a classification failure instead of swallowing it", async () => {

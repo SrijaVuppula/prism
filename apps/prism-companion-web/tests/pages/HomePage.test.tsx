@@ -85,6 +85,16 @@ describe("HomePage", () => {
     await expectNoA11yViolations(container);
   });
 
+  it("vibrates only for alerts that arrive live, not ones loaded from history", async () => {
+    const { useVibration } = await import("../../src/hooks/useVibration");
+    const loaded = event("evt_1", "A package on the doorstep.");
+    mockUseRealtimeEvents.mockReturnValue({ status: "open", events: [loaded], latestEvent: loaded, latestLiveEvent: null });
+
+    render(<HomePage />);
+
+    expect(vi.mocked(useVibration)).toHaveBeenLastCalledWith(null);
+  });
+
   it("names the device on the latest and earlier alerts when the message carries one", () => {
     const latest = { ...event("evt_2", "A car in the driveway."), device: { id: "dev_1", name: "Driveway" } };
     const earlier = { ...event("evt_1", "A package on the doorstep."), device: { id: "dev_2", name: "Front Door" } };

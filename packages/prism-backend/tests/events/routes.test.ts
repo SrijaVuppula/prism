@@ -8,14 +8,19 @@ vi.mock("../../src/db/eventStore", () => ({
 vi.mock("../../src/bedrock/multimodalContext", () => ({
   loadSnapshotBytes: vi.fn(),
 }));
+vi.mock("../../src/db/alertHistoryStore", () => ({
+  getAlertHistoryStore: vi.fn(),
+}));
 
 import { loadSnapshotBytes } from "../../src/bedrock/multimodalContext";
 import { getRingEventStore } from "../../src/db/eventStore";
+import { getAlertHistoryStore } from "../../src/db/alertHistoryStore";
 import { eventsRouter } from "../../src/events/routes";
 
 let server: Server;
 let baseUrl: string;
 let eventStoreMock: { get: ReturnType<typeof vi.fn> };
+let listAlerts: ReturnType<typeof vi.fn>;
 
 beforeAll(async () => {
   const app = express();
@@ -36,7 +41,26 @@ beforeEach(() => {
   eventStoreMock = { get: vi.fn() };
   vi.mocked(getRingEventStore).mockReturnValue(eventStoreMock as never);
   vi.mocked(loadSnapshotBytes).mockReset();
+  listAlerts = vi.fn().mockResolvedValue([{ type: "prism-event", event: { id: "evt_1" } }]);
+  vi.mocked(getAlertHistoryStore).mockReturnValue({ list: listAlerts } as never);
   vi.spyOn(console, "error").mockImplementation(() => undefined);
+});
+
+describe("GET /alerts", () => {
+  it("lists the 20 most recent delivered alerts by default", async () => {
+    const response = await fetch(`${baseUrl}/alerts`);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ alerts: [{ type: "prism-event", event: { id: "evt_1" } }] });
+    expect(listAlerts).toHaveBeenCalledWith({ limit: 20 });
+  });
+
+  it("caps the limit at 50 and rejects one that isn't a positive whole number", async () => {
+    await fetch(`${baseUrl}/alerts?limit=500`);
+    expect(listAlerts).toHaveBeenCalledWith({ limit: 50 });
+    for (const limit of ["0", "-1", "ten", "2.5"]) {
+      expect((await fetch(`${baseUrl}/alerts?limit=${limit}`)).status).toBe(400);
+    }
+  });
 });
 
 describe("GET /events/:eventId/snapshot", () => {
