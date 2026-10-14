@@ -49,5 +49,11 @@ describe("AlertHistoryStore", () => {
     expect(sql).toMatch(/WHERE occurred_at >= \$1 AND occurred_at < \$2 AND signal_class = \$3 AND category = \$4/);
     expect(sql).toMatch(/LIMIT \$5/);
     expect(params).toEqual([since, until, "Urgent", "person", 5]);
+
+    const deliveredSince = new Date("2026-10-14T05:00:00Z");
+    await store.list({ deliveredSince, limit: 50 });
+    [sql, params] = pool.query.mock.calls[2];
+    expect(sql).toMatch(/WHERE delivered_at >= \$1/);
+    expect(params).toEqual([deliveredSince, 50]);
   });
 });

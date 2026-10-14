@@ -5,9 +5,11 @@
 // household's delivered alerts and settings. Unlike the alert pipeline,
 // which runs the same fixed steps for every event (see
 // bedrock/agentOrchestration.ts), here the model decides what to look up:
-// which time window "while I was asleep" or "this morning" means, whether to
-// filter by Signal Class or category, and whether counts or individual
-// alerts answer the question. See docs/ARCHITECTURE.md.
+// the alerts that arrived since the household last looked, a time window
+// such as "this morning", a Signal Class or category, or counts. What the
+// model would otherwise have to work out from times -- which alerts are new,
+// and which happened during the household's sleep hours -- the tools decide
+// in code and report on each alert. See docs/ARCHITECTURE.md.
 
 import { Agent, BedrockModel, tool, type Model } from "@strands-agents/sdk";
 import type { EventCategory, SignalClass } from "prism-alert-engine";
@@ -16,6 +18,7 @@ import type { CompanionEventMessage } from "../api/websocket";
 import { getBedrockConfig } from "../bedrock/config";
 import { getAlertHistoryStore, type AlertQuery } from "../db/alertHistoryStore";
 import { getPreferencesStore, type UserPreferences } from "../preferences/preferencesStore";
+import { isWithinQuietHours, type QuietHours } from "../preferences/quietHours";
 import { DEFAULT_TIME_ZONE, isValidTimeZone } from "../preferences/timeZone";
 
 export interface CatchUpDeps {
@@ -25,10 +28,22 @@ export interface CatchUpDeps {
 }
 
 export interface CatchUpRequest {
-  /** The household's own question. Without one, the answer summarizes everything since `since`. */
+  /** The household's own question. Without one, the answer summarizes the alerts that arrived since `since`. */
   question?: string;
   /** When the household last looked at its alerts. Defaults to 24 hours ago. */
   since?: Date;
+}
+
+/**
+ * When the household is usually asleep: its quiet hours when they're on,
+ * otherwise 10 PM to 7 AM. Each alert the tools return says whether it
+ * happened in this window, so "while I was asleep" doesn't depend on the
+ * model working out times.
+ */
+const DEFAULT_SLEEP_HOURS: QuietHours = { enabled: true, startHour: 22, endHour: 7 };
+
+function sleepHours(preferences: UserPreferences): QuietHours {
+  return preferences.quietHours.enabled ? preferences.quietHours : DEFAULT_SLEEP_HOURS;
 }
 
 const SIGNAL_CLASSES = ["Urgent", "Notable", "Routine"] as const satisfies readonly SignalClass[];
@@ -39,11 +54,14 @@ const MAX_COUNTED_ALERTS = 500;
 
 export const SYSTEM_PROMPT = `You are Prism's catch-up assistant. Prism turns Ring doorbell events into alerts for deaf, hard-of-hearing and DeafBlind people. Answer the household's question about their doorbell alerts using only what the tools return. Never guess or invent an event.
 
-Call get_current_time first, to work out what phrases like "today", "this morning" or "last night" mean. For "while I was asleep", use the quiet hours if they're set, otherwise 10 PM to 7 AM.
+Choosing alerts:
+- "What did I miss?" or "since I last checked": use list_new_alerts, which returns exactly the alerts that arrived since the household last looked. Mention each Urgent and Notable one.
+- "While I was asleep", "overnight" or "last night": every alert says whether it happened during the household's sleep hours (duringSleepHours). Answer only from alerts where it's true, from the most recent night, and leave every other alert out, even if it was recent.
+- Other times, such as "today" or "this morning": call get_current_time first, then list_alerts with since and until.
 
 Write for someone reading quickly or on a braille display: plain sentences, no markdown, no lists with symbols, no tables, no emoji. Start with the direct answer in one sentence. Then give what matters most first: Urgent alerts, then Notable ones. Sum up Routine alerts in one sentence unless asked about them. Use the times as the tools give them. Keep the whole answer under 80 words.
 
-Don't say who a visitor is unless a tool marks them as a known visitor; describe what the camera saw instead. If there were no alerts, say so plainly.`;
+Don't say who a visitor is unless a tool marks them as a known visitor; describe what the camera saw instead. If there were no matching alerts, say so plainly.`;
 
 function householdZone(preferences: UserPreferences): string {
   return isValidTimeZone(preferences.timeZone) ? preferences.timeZone : DEFAULT_TIME_ZONE;
@@ -75,11 +93,14 @@ function parseTime(value: string | undefined, field: string): Date | undefined {
 }
 
 /** One alert as the agent sees it: what happened, where, when, and how it was scored. */
-function describeAlert(message: CompanionEventMessage, timeZone: string) {
+function describeAlert(message: CompanionEventMessage, preferences: UserPreferences) {
   const { event, device } = message;
+  const timeZone = householdZone(preferences);
+  const occurredAt = new Date(event.occurredAt);
   const breakdown = event.scoring?.breakdown ?? {};
   return {
-    time: localTime(new Date(event.occurredAt), timeZone),
+    time: localTime(occurredAt, timeZone),
+    duringSleepHours: isWithinQuietHours(occurredAt, sleepHours(preferences), timeZone),
     device: device?.name ?? "Doorbell",
     category: event.classification?.category,
     signalClass: event.scoring?.signalClass,
@@ -93,25 +114,42 @@ function describeAlert(message: CompanionEventMessage, timeZone: string) {
 const timeField = (what: string) =>
   z.string().optional().describe(`${what}, as an ISO 8601 date-time with a UTC offset, e.g. 2026-10-14T06:00:00Z`);
 
-/** The agent's tools. All of them only read. */
-export function buildCatchUpTools(deps: CatchUpDeps) {
+/**
+ * The agent's tools. All of them only read. `lastLooked` is when the
+ * household last looked at its alerts, for list_new_alerts.
+ */
+export function buildCatchUpTools(deps: CatchUpDeps, lastLooked: Date) {
   const getCurrentTime = tool({
     name: "get_current_time",
     description:
-      "The current date and time in the household's time zone, and the household's quiet hours (when they usually don't want to be disturbed, often while asleep).",
+      "The current date and time in the household's time zone, and its sleep hours (its quiet hours, or 10 PM to 7 AM when none are set).",
     inputSchema: z.object({}),
     callback: async () => {
       const preferences = await deps.getPreferences();
       const timeZone = householdZone(preferences);
       const now = deps.now();
-      const { quietHours } = preferences;
+      const sleep = sleepHours(preferences);
       return {
         now: now.toISOString(),
         localTime: localTime(now, timeZone),
         timeZone,
-        quietHours: quietHours.enabled
-          ? { from: hourLabel(quietHours.startHour), to: hourLabel(quietHours.endHour) }
-          : "not set",
+        sleepHours: { from: hourLabel(sleep.startHour), to: hourLabel(sleep.endHour) },
+      };
+    },
+  });
+
+  const listNewAlerts = tool({
+    name: "list_new_alerts",
+    description:
+      "The alerts that arrived since the household last looked at Prism, most recent first: the answer to \"What did I miss?\". Each says when it happened, which camera, what the camera saw, and its Signal Class.",
+    inputSchema: z.object({}),
+    callback: async () => {
+      const preferences = await deps.getPreferences();
+      const alerts = await deps.listAlerts({ deliveredSince: lastLooked, limit: MAX_LISTED_ALERTS });
+      return {
+        lastLooked: localTime(lastLooked, householdZone(preferences)),
+        count: alerts.length,
+        alerts: alerts.map((alert) => describeAlert(alert, preferences)),
       };
     },
   });
@@ -119,7 +157,7 @@ export function buildCatchUpTools(deps: CatchUpDeps) {
   const listAlerts = tool({
     name: "list_alerts",
     description:
-      "Alerts the doorbell sent, most recent first, with when each happened (in the household's time zone), which camera, what the camera saw, and its Signal Class: Urgent, Notable or Routine.",
+      "Alerts the doorbell sent in a time window, most recent first. Each says when it happened (in the household's time zone), whether that was during the household's sleep hours, which camera, what the camera saw, and its Signal Class: Urgent, Notable or Routine.",
     inputSchema: z.object({
       since: timeField("Only alerts at or after this time"),
       until: timeField("Only alerts before this time"),
@@ -128,7 +166,7 @@ export function buildCatchUpTools(deps: CatchUpDeps) {
       limit: z.number().int().min(1).max(MAX_LISTED_ALERTS).optional().describe("At most this many alerts (default 20)"),
     }),
     callback: async (input) => {
-      const timeZone = householdZone(await deps.getPreferences());
+      const preferences = await deps.getPreferences();
       const alerts = await deps.listAlerts({
         since: parseTime(input.since, "since"),
         until: parseTime(input.until, "until"),
@@ -136,7 +174,7 @@ export function buildCatchUpTools(deps: CatchUpDeps) {
         category: input.category,
         limit: input.limit ?? 20,
       });
-      return { count: alerts.length, alerts: alerts.map((alert) => describeAlert(alert, timeZone)) };
+      return { count: alerts.length, alerts: alerts.map((alert) => describeAlert(alert, preferences)) };
     },
   });
 
@@ -170,16 +208,17 @@ export function buildCatchUpTools(deps: CatchUpDeps) {
     },
   });
 
-  return [getCurrentTime, listAlerts, countAlerts];
+  return [getCurrentTime, listNewAlerts, listAlerts, countAlerts];
 }
 
-/** What the agent is asked: the household's question, or a catch-up since they last looked. */
-export function catchUpPrompt(request: CatchUpRequest, now: Date): string {
-  const since = (request.since ?? new Date(now.getTime() - DEFAULT_LOOKBACK_MS)).toISOString();
-  if (request.question) {
-    return `${request.question}\n\n(The household last looked at their alerts at ${since}.)`;
-  }
-  return `What did I miss? Catch me up on the doorbell alerts since ${since}.`;
+/** When the household last looked: as the app reports it, or 24 hours ago. */
+export function lastLookedAt(request: CatchUpRequest, now: Date): Date {
+  return request.since ?? new Date(now.getTime() - DEFAULT_LOOKBACK_MS);
+}
+
+/** What the agent is asked: the household's own question, or what they missed. */
+export function catchUpPrompt(request: CatchUpRequest): string {
+  return request.question ?? "What did I miss?";
 }
 
 function defaultModel(): Model {
@@ -201,9 +240,10 @@ export async function answerCatchUp(
   deps: CatchUpDeps = defaultDeps(),
   model: Model = defaultModel(),
 ): Promise<string> {
-  const agent = new Agent({ model, systemPrompt: SYSTEM_PROMPT, tools: buildCatchUpTools(deps), printer: false });
+  const tools = buildCatchUpTools(deps, lastLookedAt(request, deps.now()));
+  const agent = new Agent({ model, systemPrompt: SYSTEM_PROMPT, tools, printer: false });
   const startedAt = Date.now();
-  const result = await agent.invoke(catchUpPrompt(request, deps.now()));
+  const result = await agent.invoke(catchUpPrompt(request));
   console.log(`[catch-up] answered in ${Date.now() - startedAt} ms`);
   return result.toString().trim();
 }

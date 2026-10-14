@@ -12,6 +12,8 @@ export interface AlertQuery {
   since?: Date;
   /** Only alerts that happened before this time. */
   until?: Date;
+  /** Only alerts delivered at or after this time, whenever they happened. */
+  deliveredSince?: Date;
   signalClass?: SignalClass;
   category?: EventCategory;
   /** Most recent first; at most this many. */
@@ -42,6 +44,7 @@ export class AlertHistoryStore {
     };
     if (query.since) add("occurred_at >= ?", query.since);
     if (query.until) add("occurred_at < ?", query.until);
+    if (query.deliveredSince) add("delivered_at >= ?", query.deliveredSince);
     if (query.signalClass) add("signal_class = ?", query.signalClass);
     if (query.category) add("category = ?", query.category);
     params.push(query.limit);

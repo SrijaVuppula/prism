@@ -178,14 +178,25 @@ agent moves to a hosted deployment or gains long-running sessions.
 The companion app's **Catch up** panel answers "What did I miss?" for the
 time since the app was last open (kept in the browser's localStorage when
 the page is hidden), or a question the household types, such as "Did a
-package come today?". `POST /catch-up` runs the agent with three read-only
+package come today?". `POST /catch-up` runs the agent with four read-only
 tools:
 
-- `get_current_time`: the time and quiet hours in the household's time zone.
-- `list_alerts`: delivered alerts in a time window, optionally filtered by
-  Signal Class or category, each with its local time, camera, description,
-  Signal Class and whether it was a repeat visit.
+- `get_current_time`: the time in the household's time zone, and its sleep
+  hours (its quiet hours, or 10 PM to 7 AM when they're off).
+- `list_new_alerts`: the alerts delivered since the household last looked,
+  whenever they happened. "What did I miss?" means what arrived since then,
+  which includes an event found later in Ring's event history.
+- `list_alerts`: alerts that happened in a time window, optionally filtered
+  by Signal Class or category.
 - `count_alerts`: totals for a window, by Signal Class, category and camera.
+
+Every alert the tools return carries its local time, camera, description,
+Signal Class, whether it was a repeat visit, and whether it happened during
+the sleep hours. Those two judgments, which alerts are new and which came
+while the household was asleep, are made in code rather than left to the
+model: in testing with the live model, asked "Did anyone come while I was
+asleep?", it listed recent evening visits and missed the one at 11 PM when
+it had to work the window out from times itself.
 
 The tools read `delivered_alerts`, which stores each alert exactly as the
 companion app received it (`db/alertHistoryStore.ts`). The same table backs

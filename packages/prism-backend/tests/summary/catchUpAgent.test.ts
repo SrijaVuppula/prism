@@ -5,12 +5,14 @@ import {
   answerCatchUp,
   buildCatchUpTools,
   catchUpPrompt,
+  lastLookedAt,
   SYSTEM_PROMPT,
   type CatchUpDeps,
 } from "../../src/summary/catchUpAgent";
 import { DEFAULT_PREFERENCES } from "../../src/preferences/preferencesStore";
 
 const NOW = new Date("2026-10-14T15:00:00Z");
+const LAST_LOOKED = new Date("2026-10-14T05:00:00Z");
 
 function alert(
   id: string,
@@ -35,7 +37,7 @@ function alert(
 }
 
 const ALERTS = [
-  alert("a3", "2026-10-14T13:05:00Z", "Notable", "package", "A brown box was left on the doormat."),
+  alert("a3", "2026-10-14T20:05:00Z", "Notable", "package", "A brown box was left on the doormat."),
   alert("a2", "2026-10-14T09:40:00Z", "Urgent", "person", "A person in a dark hoodie at the door.", { repeatVisit: -8 }),
   alert("a1", "2026-10-14T08:10:00Z", "Routine", "animal", "A cat walked across the porch."),
 ];
@@ -54,18 +56,51 @@ function deps(overrides: Partial<CatchUpDeps> = {}): CatchUpDeps & { listAlerts:
 }
 
 function toolsByName(d: CatchUpDeps) {
-  return Object.fromEntries(buildCatchUpTools(d).map((t) => [t.name, t]));
+  return Object.fromEntries(buildCatchUpTools(d, LAST_LOOKED).map((t) => [t.name, t]));
 }
 
 describe("catch-up tools", () => {
-  it("get_current_time gives the local time and quiet hours", async () => {
+  it("get_current_time gives the local time and sleep hours: the quiet hours, or 10 PM to 7 AM", async () => {
     const result = await toolsByName(deps()).get_current_time.invoke({});
     expect(result).toEqual({
       now: "2026-10-14T15:00:00.000Z",
       localTime: "Wed, Oct 14, 8:00 AM",
       timeZone: "America/Los_Angeles",
-      quietHours: { from: "10 PM", to: "7 AM" },
+      sleepHours: { from: "10 PM", to: "7 AM" },
     });
+
+    const lateRiser = deps({
+      getPreferences: vi.fn().mockResolvedValue({
+        ...DEFAULT_PREFERENCES,
+        timeZone: "America/Los_Angeles",
+        quietHours: { enabled: true, startHour: 0, endHour: 9 },
+      }),
+    });
+    expect(await toolsByName(lateRiser).get_current_time.invoke({})).toMatchObject({
+      sleepHours: { from: "12 AM", to: "9 AM" },
+    });
+  });
+
+  it("list_new_alerts returns the alerts that arrived since the household last looked, whenever they happened", async () => {
+    const d = deps();
+    const result = (await toolsByName(d).list_new_alerts.invoke({})) as { lastLooked: string; count: number };
+
+    expect(d.listAlerts).toHaveBeenCalledWith({ deliveredSince: LAST_LOOKED, limit: 50 });
+    expect(result).toMatchObject({ lastLooked: "Tue, Oct 13, 10:00 PM", count: 3 });
+  });
+
+  it("marks each alert with whether it happened during sleep hours, so the model doesn't work it out", async () => {
+    const quietHoursOff = deps({
+      getPreferences: vi.fn().mockResolvedValue({ ...DEFAULT_PREFERENCES, timeZone: "America/Los_Angeles" }),
+    });
+    const result = (await toolsByName(quietHoursOff).list_alerts.invoke({})) as {
+      alerts: Array<{ time: string; duringSleepHours: boolean }>;
+    };
+    expect(result.alerts.map(({ time, duringSleepHours }) => [time, duringSleepHours])).toEqual([
+      ["Wed, Oct 14, 1:05 PM", false],
+      ["Wed, Oct 14, 2:40 AM", true],
+      ["Wed, Oct 14, 1:10 AM", true],
+    ]);
   });
 
   it("list_alerts passes the model's filters to the store and describes each alert in local time", async () => {
@@ -86,6 +121,7 @@ describe("catch-up tools", () => {
     expect(result.count).toBe(3);
     expect(result.alerts[1]).toEqual({
       time: "Wed, Oct 14, 2:40 AM",
+      duringSleepHours: true,
       device: "Front Door",
       category: "person",
       signalClass: "Urgent",
@@ -111,16 +147,15 @@ describe("catch-up tools", () => {
   });
 });
 
-describe("catchUpPrompt", () => {
-  it("asks for a catch-up since the household last looked, or the last 24 hours", () => {
-    expect(catchUpPrompt({ since: new Date("2026-10-14T06:00:00Z") }, NOW)).toBe(
-      "What did I miss? Catch me up on the doorbell alerts since 2026-10-14T06:00:00.000Z.",
-    );
-    expect(catchUpPrompt({}, NOW)).toContain("since 2026-10-13T15:00:00.000Z");
+describe("catchUpPrompt and lastLookedAt", () => {
+  it("asks what was missed, or passes the household's own question on unchanged", () => {
+    expect(catchUpPrompt({})).toBe("What did I miss?");
+    expect(catchUpPrompt({ question: "Did a package come?", since: LAST_LOOKED })).toBe("Did a package come?");
   });
 
-  it("passes the household's own question on", () => {
-    expect(catchUpPrompt({ question: "Did a package come?" }, NOW)).toMatch(/^Did a package come\?\n/);
+  it("takes the last look from the app, or 24 hours ago", () => {
+    expect(lastLookedAt({ since: LAST_LOOKED }, NOW)).toBe(LAST_LOOKED);
+    expect(lastLookedAt({}, NOW)).toEqual(new Date("2026-10-13T15:00:00Z"));
   });
 });
 
@@ -193,5 +228,7 @@ describe("answerCatchUp", () => {
     expect(SYSTEM_PROMPT).toMatch(/braille display/);
     expect(SYSTEM_PROMPT).toMatch(/no markdown/);
     expect(SYSTEM_PROMPT).toMatch(/Never guess or invent an event/);
+    expect(SYSTEM_PROMPT).toMatch(/list_new_alerts/);
+    expect(SYSTEM_PROMPT).toMatch(/duringSleepHours/);
   });
 });
