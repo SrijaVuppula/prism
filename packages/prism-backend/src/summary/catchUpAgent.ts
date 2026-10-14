@@ -59,6 +59,8 @@ Choosing alerts:
 - "While I was asleep", "overnight" or "last night": every alert says whether it happened during the household's sleep hours (duringSleepHours). Answer only from alerts where it's true, from the most recent night, and leave every other alert out, even if it was recent.
 - Other times, such as "today" or "this morning": call get_current_time first, then list_alerts with since and until.
 
+Use the counts the tools give rather than counting yourself. When an alert is a repeatVisit, say the same visitor came again rather than counting them as someone new.
+
 Write for someone reading quickly or on a braille display: plain sentences, no markdown, no lists with symbols, no tables, no emoji. Start with the direct answer in one sentence. Then give what matters most first: Urgent alerts, then Notable ones. Sum up Routine alerts in one sentence unless asked about them. Use the times as the tools give them. Keep the whole answer under 80 words.
 
 Don't say who a visitor is unless a tool marks them as a known visitor; describe what the camera saw instead. If there were no matching alerts, say so plainly.`;
@@ -111,6 +113,16 @@ function describeAlert(message: CompanionEventMessage, preferences: UserPreferen
   };
 }
 
+/** How many alerts have each value of `key`. */
+function tallyBy(alerts: CompanionEventMessage[], key: (alert: CompanionEventMessage) => string | undefined) {
+  const counts: Record<string, number> = {};
+  for (const alert of alerts) {
+    const value = key(alert);
+    if (value) counts[value] = (counts[value] ?? 0) + 1;
+  }
+  return counts;
+}
+
 const timeField = (what: string) =>
   z.string().optional().describe(`${what}, as an ISO 8601 date-time with a UTC offset, e.g. 2026-10-14T06:00:00Z`);
 
@@ -149,6 +161,7 @@ export function buildCatchUpTools(deps: CatchUpDeps, lastLooked: Date) {
       return {
         lastLooked: localTime(lastLooked, householdZone(preferences)),
         count: alerts.length,
+        bySignalClass: tallyBy(alerts, (alert) => alert.event.scoring?.signalClass),
         alerts: alerts.map((alert) => describeAlert(alert, preferences)),
       };
     },
@@ -191,19 +204,11 @@ export function buildCatchUpTools(deps: CatchUpDeps, lastLooked: Date) {
         until: parseTime(input.until, "until"),
         limit: MAX_COUNTED_ALERTS,
       });
-      const tally = (key: (alert: CompanionEventMessage) => string | undefined) => {
-        const counts: Record<string, number> = {};
-        for (const alert of alerts) {
-          const value = key(alert);
-          if (value) counts[value] = (counts[value] ?? 0) + 1;
-        }
-        return counts;
-      };
       return {
         total: alerts.length,
-        bySignalClass: tally((alert) => alert.event.scoring?.signalClass),
-        byCategory: tally((alert) => alert.event.classification?.category),
-        byCamera: tally((alert) => alert.device?.name ?? "Doorbell"),
+        bySignalClass: tallyBy(alerts, (alert) => alert.event.scoring?.signalClass),
+        byCategory: tallyBy(alerts, (alert) => alert.event.classification?.category),
+        byCamera: tallyBy(alerts, (alert) => alert.device?.name ?? "Doorbell"),
       };
     },
   });

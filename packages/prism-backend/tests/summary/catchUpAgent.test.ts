@@ -86,7 +86,11 @@ describe("catch-up tools", () => {
     const result = (await toolsByName(d).list_new_alerts.invoke({})) as { lastLooked: string; count: number };
 
     expect(d.listAlerts).toHaveBeenCalledWith({ deliveredSince: LAST_LOOKED, limit: 50 });
-    expect(result).toMatchObject({ lastLooked: "Tue, Oct 13, 10:00 PM", count: 3 });
+    expect(result).toMatchObject({
+      lastLooked: "Tue, Oct 13, 10:00 PM",
+      count: 3,
+      bySignalClass: { Notable: 1, Urgent: 1, Routine: 1 },
+    });
   });
 
   it("marks each alert with whether it happened during sleep hours, so the model doesn't work it out", async () => {
@@ -230,5 +234,6 @@ describe("answerCatchUp", () => {
     expect(SYSTEM_PROMPT).toMatch(/Never guess or invent an event/);
     expect(SYSTEM_PROMPT).toMatch(/list_new_alerts/);
     expect(SYSTEM_PROMPT).toMatch(/duringSleepHours/);
+    expect(SYSTEM_PROMPT).toMatch(/Use the counts the tools give/);
   });
 });
