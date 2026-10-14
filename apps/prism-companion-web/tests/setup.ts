@@ -7,6 +7,16 @@ import { afterEach } from "vitest";
 import { cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
+// Node 25 and later have their own localStorage and sessionStorage globals,
+// which are undefined unless Node is given a storage file, and they hide
+// jsdom's. Point both back at jsdom's storage, as in a browser.
+const { jsdom } = globalThis as unknown as { jsdom?: { window: Window } };
+for (const name of ["localStorage", "sessionStorage"] as const) {
+  if (jsdom && globalThis[name] === undefined) {
+    Object.defineProperty(globalThis, name, { value: jsdom.window[name], configurable: true, writable: true });
+  }
+}
+
 afterEach(() => {
   cleanup();
 });
