@@ -2,6 +2,8 @@
 
 Context-aware, multi-channel accessible alerts for Ring.
 
+![The Prism companion app. The latest alert is an Urgent one: a person at the door at 11:50 PM, with its Signal Score of 79 broken down beside it (person detected, model confidence, late night) and its vibration pattern of three long pulses. The Catch up panel answers "What did I miss?" in plain sentences, and earlier alerts for a delivery worker, a package and a cat are listed below.](docs/images/companion-app.jpg)
+
 ## The problem
 
 Ring and Nest doorbells alert through sound and app pings only, which is a well-documented failure mode for deaf, hard-of-hearing, and DeafBlind users. Today's fix is a separate proprietary hardware system (strobe/vibration pucks) that has no idea what the camera is actually seeing — it buzzes for any trigger, with no context.
