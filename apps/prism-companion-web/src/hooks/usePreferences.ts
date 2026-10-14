@@ -18,6 +18,9 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
 
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
 
+const LOAD_ATTEMPTS = 10;
+const LOAD_RETRY_MS = 2000;
+
 export interface UsePreferencesResult {
   preferences: UserPreferences;
   loading: boolean;
@@ -34,23 +37,37 @@ export function usePreferences(): UsePreferencesResult {
 
   useEffect(() => {
     let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
 
-    (async () => {
+    // The backend may still be starting (e.g. right after `npm run dev`
+    // restarts), so a failed load is retried a few times before giving up.
+    // Until then `loading` stays true, which keeps alert times in this
+    // device's time zone rather than the UTC default.
+    const load = async (attempt: number) => {
       try {
         const response = await fetch(`${resolveApiBase()}/preferences`);
         if (!response.ok) throw new Error(`Failed to load preferences (${response.status})`);
         const data = (await response.json()) as UserPreferences;
-        if (!cancelled) setPreferences(data);
+        if (cancelled) return;
+        setPreferences(data);
+        setError(null);
+        setLoading(false);
       } catch (err) {
+        if (cancelled) return;
+        if (attempt < LOAD_ATTEMPTS) {
+          retryTimer = setTimeout(() => void load(attempt + 1), LOAD_RETRY_MS);
+          return;
+        }
         console.error("[preferences] failed to load:", err);
-        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load preferences.");
-      } finally {
-        if (!cancelled) setLoading(false);
+        setError(err instanceof Error ? err.message : "Failed to load preferences.");
+        setLoading(false);
       }
-    })();
+    };
+    void load(1);
 
     return () => {
       cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
     };
   }, []);
 

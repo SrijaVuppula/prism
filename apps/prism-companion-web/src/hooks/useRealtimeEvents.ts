@@ -1,8 +1,8 @@
 // Opens (and keeps open) a WebSocket connection to the backend's companion
 // event stream (prism-backend/src/api/websocket.ts), and keeps a short
-// history of events in state: the most recent stored alerts, loaded once
-// from GET /alerts so a reload doesn't empty the screen, plus each event
-// that arrives live.
+// history of events in state: the most recent stored alerts, loaded from
+// GET /alerts each time the connection opens (so neither a reload nor a
+// backend restart empties the screen), plus each event that arrives live.
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { resolveApiBase } from "../lib/apiBase";
@@ -58,8 +58,10 @@ export function useRealtimeEvents(): RealtimeEventsState {
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => {
+    let socket: WebSocket | undefined;
     let cancelled = false;
-    (async () => {
+
+    async function loadRecentAlerts() {
       try {
         const response = await fetch(`${resolveApiBase()}/alerts?limit=${MAX_HISTORY}`);
         if (!response.ok) throw new Error(`Failed to load recent alerts (${response.status})`);
@@ -69,22 +71,18 @@ export function useRealtimeEvents(): RealtimeEventsState {
         // Live alerts still arrive; only the earlier ones are missing.
         console.error("[realtime] failed to load recent alerts:", err);
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    let socket: WebSocket | undefined;
-    let cancelled = false;
+    }
 
     function connect() {
       setStatus("connecting");
       socket = new WebSocket(resolveWsUrl());
 
       socket.onopen = () => {
-        if (!cancelled) setStatus("open");
+        if (cancelled) return;
+        setStatus("open");
+        // The backend is up: fetch what was stored, including anything that
+        // arrived while the connection was down.
+        void loadRecentAlerts();
       };
 
       socket.onmessage = (messageEvent) => {

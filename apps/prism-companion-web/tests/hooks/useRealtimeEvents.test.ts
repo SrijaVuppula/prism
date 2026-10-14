@@ -35,6 +35,8 @@ describe("useRealtimeEvents", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ alerts: stored }) }));
 
     const { result } = renderHook(() => useRealtimeEvents());
+    expect(fetch).not.toHaveBeenCalled();
+    act(() => FakeSocket.instances[0].onopen?.());
 
     await waitFor(() => expect(result.current.events.map((m) => m.event.id)).toEqual(["b", "a"]));
     expect(result.current.latestEvent?.event.id).toBe("b");
@@ -48,6 +50,7 @@ describe("useRealtimeEvents", () => {
       vi.fn().mockResolvedValue({ ok: true, json: async () => ({ alerts: [message("a", "2026-10-14T09:00:00Z")] }) }),
     );
     const { result } = renderHook(() => useRealtimeEvents());
+    act(() => FakeSocket.instances[0].onopen?.());
     await waitFor(() => expect(result.current.events).toHaveLength(1));
 
     const live = message("c", "2026-10-14T11:00:00Z");
@@ -68,8 +71,31 @@ describe("useRealtimeEvents", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
     const { result } = renderHook(() => useRealtimeEvents());
+    act(() => FakeSocket.instances[0].onopen?.());
 
     act(() => FakeSocket.instances[0].onmessage?.({ data: JSON.stringify(message("c", "2026-10-14T11:00:00Z")) }));
     await waitFor(() => expect(result.current.latestEvent?.event.id).toBe("c"));
+  });
+
+  it("loads stored alerts again after reconnecting, e.g. when the backend restarts", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ alerts: [message("a", "2026-10-14T09:00:00Z")] }) })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ alerts: [message("b", "2026-10-14T10:00:00Z"), message("a", "2026-10-14T09:00:00Z")] }),
+      });
+    vi.stubGlobal("fetch", fetchMock);
+    const { result } = renderHook(() => useRealtimeEvents());
+
+    await act(async () => FakeSocket.instances[0].onopen?.());
+    act(() => FakeSocket.instances[0].onclose?.());
+    await act(async () => vi.advanceTimersByTime(2000));
+    await act(async () => FakeSocket.instances[1].onopen?.());
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(result.current.events.map((m) => m.event.id)).toEqual(["b", "a"]);
+    vi.useRealTimers();
   });
 });
