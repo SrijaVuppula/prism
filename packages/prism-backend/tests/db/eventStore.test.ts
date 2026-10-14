@@ -32,6 +32,19 @@ describe("RingEventStore", () => {
     expect(await new RingEventStore(pool).save(event, "ding", raw)).toBe(false);
   });
 
+  it("finds an event from the same device near a time, whether it came by webhook or from the event history", async () => {
+    const pool = { query: vi.fn().mockResolvedValueOnce({ rows: [{}], rowCount: 1 }).mockResolvedValueOnce({ rows: [], rowCount: 0 }) } as any;
+    const store = new RingEventStore(pool);
+
+    expect(await store.hasEventNear("dev-a", "2026-01-01T12:00:00.000Z", 15_000)).toBe(true);
+    expect(await store.hasEventNear("dev-a", "2026-01-01T13:00:00.000Z", 15_000)).toBe(false);
+
+    const [sql, params] = pool.query.mock.calls[0];
+    expect(sql).toMatch(/make_interval\(secs => \$3\)/);
+    expect(sql).toMatch(/'\{data,attributes,source\}' = \$1 OR raw_payload #>> '\{relationships,source,data,id\}' = \$1/);
+    expect(params).toEqual(["dev-a", "2026-01-01T12:00:00.000Z", 15]);
+  });
+
   it("returns null when the event does not exist", async () => {
     const pool = fakePool([]);
     const store = new RingEventStore(pool);

@@ -65,3 +65,19 @@ export function getRingApiBaseUrl(): string {
 export function getRingAccessToken(): string | null {
   return process.env.RING_ACCESS_TOKEN || null;
 }
+
+export const DEFAULT_RING_HISTORY_POLL_MINUTES = 10;
+
+/**
+ * How often to read Ring's event history for events Prism missed (see
+ * eventHistory.ts), in minutes. RING_HISTORY_POLL_MINUTES=0 turns it off.
+ */
+export function getRingHistoryPollMinutes(): number {
+  const raw = process.env.RING_HISTORY_POLL_MINUTES?.trim();
+  if (!raw) return DEFAULT_RING_HISTORY_POLL_MINUTES;
+  const minutes = Number(raw);
+  if (!Number.isInteger(minutes) || minutes < 0) {
+    throw new Error(`RING_HISTORY_POLL_MINUTES must be a whole number of minutes, or 0 to turn it off (got "${raw}")`);
+  }
+  return minutes;
+}

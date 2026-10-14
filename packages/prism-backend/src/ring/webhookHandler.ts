@@ -129,7 +129,7 @@ export function parseRingWebhook(value: unknown): RingWebhook {
 }
 
 /** Ring's motion sub_type, which is only set when Smart Alerts is on for the device. */
-function motionKind(subType: unknown): RingAlertKind {
+export function motionKind(subType: unknown): RingAlertKind {
   if (subType === "human") return "person-detected";
   if (subType === "package_delivery") return "package-detected";
   return "motion";
@@ -137,7 +137,13 @@ function motionKind(subType: unknown): RingAlertKind {
 
 const NO_SNAPSHOT = "No snapshot was available to describe";
 
-function fallbackClassification(kind: RingAlertKind, subType: unknown): ClassificationResult | undefined {
+/**
+ * What Ring itself detected, as a stand-in classification for when the
+ * snapshot can't be used. Undefined for plain motion, where Ring's event
+ * says nothing about what moved. Also used for events picked up from Ring's
+ * event history (eventHistory.ts), whose sub-types include "animal".
+ */
+export function fallbackClassification(kind: RingAlertKind, subType: unknown): ClassificationResult | undefined {
   switch (kind) {
     case "ding":
       return { category: "person", description: `Someone pressed the doorbell. ${NO_SNAPSHOT} them.`, confidence: 0.5 };
@@ -146,9 +152,13 @@ function fallbackClassification(kind: RingAlertKind, subType: unknown): Classifi
     case "package-detected":
       return { category: "package", description: `Ring detected a package delivery. ${NO_SNAPSHOT} it.`, confidence: 0.5 };
     default:
-      return subType === "vehicle"
-        ? { category: "vehicle", description: `Ring detected a vehicle. ${NO_SNAPSHOT} it.`, confidence: 0.5 }
-        : undefined;
+      if (subType === "vehicle") {
+        return { category: "vehicle", description: `Ring detected a vehicle. ${NO_SNAPSHOT} it.`, confidence: 0.5 };
+      }
+      if (subType === "animal") {
+        return { category: "animal", description: `Ring detected an animal. ${NO_SNAPSHOT} it.`, confidence: 0.5 };
+      }
+      return undefined;
   }
 }
 

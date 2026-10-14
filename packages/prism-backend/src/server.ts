@@ -1,8 +1,8 @@
 // Entry point. Wires up: webhook receiver, WebSocket server, push
 // subscription endpoints, preferences/known-visitor-tagging/feedback
 // endpoints, event snapshots and recent alerts, the catch-up summary, the
-// household's data controls and history retention, and the orchestration
-// pipeline.
+// household's data controls and history retention, reading Ring's event
+// history for missed events, and the orchestration pipeline.
 
 import { createServer } from "node:http";
 import express from "express";
@@ -18,6 +18,7 @@ import { summaryRouter } from "./summary/routes";
 import { startHistoryRetention } from "./db/retention";
 import { attachWebSocketServer } from "./api/websocket";
 import { logRingConnection } from "./ring/deviceDirectory";
+import { startRingHistoryCatchUp } from "./ring/eventHistory";
 
 loadEnv();
 
@@ -48,4 +49,5 @@ httpServer.listen(PORT, () => {
   console.log(`prism-backend listening on :${PORT}`);
   void logRingConnection();
   startHistoryRetention();
+  startRingHistoryCatchUp();
 });

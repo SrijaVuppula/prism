@@ -19,6 +19,22 @@ export interface RingImage {
   mediaType: string;
 }
 
+/** One entry in a device's event history (metadata only, no media). */
+export interface RingHistoryEvent {
+  id: string;
+  /** "ding", "motion" or "on_demand"; a motion event may carry its sub-type, e.g. "motion.human". */
+  eventType: string;
+  deviceId: string;
+  /** Epoch milliseconds. */
+  start: number;
+}
+
+export interface RingHistoryPage {
+  events: RingHistoryEvent[];
+  /** Path of the next (older) page, when there is one. */
+  next?: string;
+}
+
 export class RingApiError extends Error {
   constructor(
     message: string,
@@ -34,6 +50,10 @@ export class RingApiError extends Error {
 interface JsonApiResource {
   id?: unknown;
   attributes?: Record<string, unknown>;
+}
+
+interface HistoryResource extends JsonApiResource {
+  relationships?: { source?: { data?: { id?: unknown } } };
 }
 
 function deviceName(attributes: Record<string, unknown> | undefined): string {
@@ -87,6 +107,29 @@ export class RingClient {
   async completeAccountLink(nonce: string): Promise<void> {
     await this.requestJson("POST", "/v1/accounts/me/app-integrations", { nonce });
     await this.requestJson("PATCH", "/v1/accounts/me/app-integrations", { status: "completed" });
+  }
+
+  /**
+   * A page of the device's event history, newest first:
+   * GET /v1/history/devices/{id}/events. Ring only returns events from
+   * after the user granted Prism access. Pass `nextPath` (a previous page's
+   * `next`) to read the page after it.
+   */
+  async listEventHistory(deviceId: string, eventTypes: string[], nextPath?: string): Promise<RingHistoryPage> {
+    const path =
+      nextPath ??
+      `/v1/history/devices/${encodeURIComponent(deviceId)}/events?event_types=${encodeURIComponent(eventTypes.join(","))}`;
+    const body = (await this.requestJson("GET", path)) as { data?: unknown; links?: { next?: unknown } };
+    const resources = Array.isArray(body?.data) ? (body.data as HistoryResource[]) : [];
+    const events = resources.flatMap((resource): RingHistoryEvent[] => {
+      const eventType = resource?.attributes?.event_type;
+      const start = resource?.attributes?.start;
+      const source = resource?.relationships?.source?.data?.id;
+      if (typeof resource?.id !== "string" || typeof eventType !== "string" || typeof start !== "number") return [];
+      return [{ id: resource.id, eventType, deviceId: typeof source === "string" ? source : deviceId, start }];
+    });
+    const next = body?.links?.next;
+    return { events, ...(typeof next === "string" && next ? { next } : {}) };
   }
 
   /** The device's privacy zones: GET /v1/devices/{id}/configurations. */

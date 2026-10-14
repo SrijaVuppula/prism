@@ -26,6 +26,23 @@ export class RingEventStore {
     return result.rowCount === 1;
   }
 
+  /**
+   * Whether an event from this device was already stored within
+   * `windowMs` of `occurredAt`, however it arrived. Ring's event history
+   * and its webhooks give the same event different ids, so they're matched
+   * by device and time.
+   */
+  async hasEventNear(deviceId: string, occurredAt: string, windowMs: number): Promise<boolean> {
+    const result = await this.pool.query(
+      `SELECT 1 FROM ring_events
+       WHERE occurred_at BETWEEN $2::timestamptz - make_interval(secs => $3) AND $2::timestamptz + make_interval(secs => $3)
+         AND (raw_payload #>> '{data,attributes,source}' = $1 OR raw_payload #>> '{relationships,source,data,id}' = $1)
+       LIMIT 1`,
+      [deviceId, occurredAt, windowMs / 1000],
+    );
+    return (result.rowCount ?? 0) > 0;
+  }
+
   async get(id: string): Promise<PrismEvent | null> {
     const result = await this.pool.query<{ id: string; occurred_at: Date; snapshot_url: string }>(
       `SELECT id, occurred_at, snapshot_url FROM ring_events WHERE id = $1`,

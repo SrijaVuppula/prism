@@ -203,6 +203,17 @@ describe("runPipeline", () => {
     error.mockRestore();
   });
 
+  it("stores an alert quietly, without broadcast or push, for an event found after the fact", async () => {
+    vi.mocked(classifySnapshot).mockResolvedValue({ category: "person", description: "A visitor.", confidence: 0.95 });
+
+    const result = await runPipeline(baseEvent("2026-01-01T23:00:00.000Z"), undefined, { quiet: true });
+
+    expect(result.event.scoring?.signalClass).toBe("Urgent");
+    expect(saveAlert).toHaveBeenCalledTimes(1);
+    expect(broadcastEvent).not.toHaveBeenCalled();
+    expect(dispatchPushNotifications).not.toHaveBeenCalled();
+  });
+
   it("propagates a classification failure instead of swallowing it", async () => {
     vi.mocked(classifySnapshot).mockRejectedValue(new Error("bedrock unavailable"));
     await expect(runPipeline(baseEvent("2026-01-01T14:00:00.000Z"))).rejects.toThrow("bedrock unavailable");

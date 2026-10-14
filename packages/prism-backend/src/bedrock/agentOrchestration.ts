@@ -86,6 +86,12 @@ export interface PipelineOptions {
    */
   deliver?: boolean;
   /**
+   * Store the alert for the app's history and the catch-up summary, but
+   * don't broadcast or push it: for events picked up from Ring's event
+   * history after the moment has passed (ring/eventHistory.ts).
+   */
+  quiet?: boolean;
+  /**
    * The device's name as the event itself gives it (e.g. the simulator's
    * "Front Door (simulator)"), shown when the Ring API doesn't know the
    * device.
@@ -223,12 +229,19 @@ async function resolveDevice(event: PrismEvent, fallbackName?: string): Promise<
  * rethrown, since the classification and scoring already succeeded and
  * shouldn't be reported as a pipeline failure just because delivery hiccuped.
  */
-async function dispatch(scoredEvent: PrismEvent, channels: ChannelPayloads, device?: CompanionDevice): Promise<void> {
+async function dispatch(
+  scoredEvent: PrismEvent,
+  channels: ChannelPayloads,
+  device: CompanionDevice | undefined,
+  quiet: boolean,
+): Promise<void> {
   const message = { type: "prism-event" as const, event: scoredEvent, channels, ...(device ? { device } : {}) };
-  try {
-    broadcastEvent(message);
-  } catch (err) {
-    console.error(`[orchestration] WebSocket broadcast failed for event ${scoredEvent.id}:`, err);
+  if (!quiet) {
+    try {
+      broadcastEvent(message);
+    } catch (err) {
+      console.error(`[orchestration] WebSocket broadcast failed for event ${scoredEvent.id}:`, err);
+    }
   }
 
   // Kept for the app's history and the catch-up summary.
@@ -238,7 +251,7 @@ async function dispatch(scoredEvent: PrismEvent, channels: ChannelPayloads, devi
     console.error(`[orchestration] couldn't store the delivered alert for event ${scoredEvent.id}:`, err);
   }
 
-  if (channels.push) {
+  if (channels.push && !quiet) {
     try {
       await dispatchPushNotifications(channels.push);
     } catch (err) {
@@ -303,8 +316,10 @@ export async function runPipeline(
   const device = await devicePromise;
 
   if (options.deliver !== false) {
-    await dispatch(scoredEvent, channels, device);
-    console.log(`[orchestration] event=${event.id} delivered totalLatencyMs=${Date.now() - startedAt}`);
+    await dispatch(scoredEvent, channels, device, options.quiet === true);
+    console.log(
+      `[orchestration] event=${event.id} ${options.quiet ? "stored quietly" : "delivered"} totalLatencyMs=${Date.now() - startedAt}`,
+    );
   }
 
   return { event: scoredEvent, channels, ...(device ? { device } : {}) };

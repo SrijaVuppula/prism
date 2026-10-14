@@ -103,6 +103,45 @@ describe("RingClient.downloadImage", () => {
   });
 });
 
+describe("RingClient.listEventHistory", () => {
+  it("reads a page of doorbell and motion events, and the path of the next page", async () => {
+    const fetchImpl = vi.fn().mockImplementation(async () =>
+      jsonResponse({
+        data: [
+          {
+            type: "history-events",
+            id: "evt-1",
+            attributes: { event_type: "motion", is_third_party_reviewed: false, start: 1699457200000, end: 1699457225000 },
+            relationships: { source: { data: { type: "devices", id: "ava1.ring.device.a" } } },
+          },
+          { type: "history-events", id: "evt-2", attributes: { event_type: "ding", start: 1699457100000 } },
+          { type: "history-events", attributes: { event_type: "ding", start: 1 } },
+        ],
+        links: { next: "/v1/history/devices/ava1.ring.device.a/events?page[key]=2023-11-08T15:25:00Z" },
+      }),
+    );
+    const client = new RingClient("t", "https://api.example.test", fetchImpl);
+
+    const page = await client.listEventHistory("ava1.ring.device.a", ["ding", "motion"]);
+
+    expect(String(fetchImpl.mock.calls[0][0])).toBe(
+      "https://api.example.test/v1/history/devices/ava1.ring.device.a/events?event_types=ding%2Cmotion",
+    );
+    expect(page).toEqual({
+      events: [
+        { id: "evt-1", eventType: "motion", deviceId: "ava1.ring.device.a", start: 1699457200000 },
+        { id: "evt-2", eventType: "ding", deviceId: "ava1.ring.device.a", start: 1699457100000 },
+      ],
+      next: "/v1/history/devices/ava1.ring.device.a/events?page[key]=2023-11-08T15:25:00Z",
+    });
+
+    await client.listEventHistory("ava1.ring.device.a", ["ding"], page.next);
+    expect(String(fetchImpl.mock.calls[1][0])).toBe(
+      "https://api.example.test/v1/history/devices/ava1.ring.device.a/events?page[key]=2023-11-08T15:25:00Z",
+    );
+  });
+});
+
 describe("RingClient.getPrivacyZones", () => {
   it("reads the zones from GET /v1/devices/{id}/configurations", async () => {
     const zone = { id: "z1", vertices: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 0.3 }] };

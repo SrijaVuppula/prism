@@ -96,6 +96,23 @@ comes from a camera module Ring reports no zones for (Ring reports zones
 for one module of a multi-camera device), the frame isn't used and the
 alert falls back to Ring's event type, as for a failed download.
 
+**Missed events** (`eventHistory.ts`). Webhooks are the main path, but an
+event can still be missed: the backend was down, or Ring gave up retrying a
+delivery. Shortly after startup and then every `RING_HISTORY_POLL_MINUTES`
+(default 10), Prism lists the account's devices and reads each one's event
+history (`GET /v1/history/devices/{id}/events?event_types=ding,motion`,
+following `links.next` to older pages). The first read looks back a day;
+later reads start where the last one ended. Live view sessions are
+skipped. History and webhooks give the same event different ids, so an
+event is treated as already received if a stored event from the same
+device is within 15 seconds of it, and the history is only read for
+events at least a minute old, by which time their webhook has normally
+arrived. A missed event goes through the same pipeline as a webhook, with
+the snapshot downloaded for its start time. If it's under five minutes old
+it alerts as usual; an older one is stored quietly, without vibration or
+push, so it appears in the app's history and in the catch-up summary
+rather than buzzing the household about something long over.
+
 **Device names** (`deviceDirectory.ts`). Webhooks identify a device by id
 only, so for each event the pipeline looks up the device's name with
 `GET /v1/devices` and sends it with the alert ("Front Door · Person · 95%
