@@ -132,26 +132,58 @@ calls not about a specific event).
 
 ## Orchestration design
 
-`bedrock/agentOrchestration.ts` is a plain, linear async chain (classify ->
-score -> channel decision), not an AgentCore or Strands agent. That's a
-deliberate choice, made after looking at both:
+Prism uses an agent framework where the model has decisions to make, and a
+plain function chain where it doesn't.
 
-- There's no multi-step tool-calling or planning in this pipeline -- every
-  event goes through the same four steps in the same order. An agent
-  framework earns its complexity when a step needs the model to choose
-  between actions; nothing here does that yet.
-- Strands Agents (AWS's open-source agent SDK) is Python-first, with no
-  mature JS/TypeScript SDK. Using it here would mean standing up a separate
-  Python service the Node backend calls over the network -- a real
-  architecture change, not a library swap.
-- Bedrock AgentCore is a hosted runtime for deploying and operating agents,
-  not an npm package. Adopting it means provisioning actual AWS
-  infrastructure beyond what a single Bedrock InvokeModel call needs.
+**The alert pipeline** (`bedrock/agentOrchestration.ts`) is a linear async
+chain: classify -> score -> channel decision -> deliver. Every event takes
+the same four steps in the same order, and the model's only job is to
+describe one snapshot, so there's nothing for it to choose between. The
+chain also keeps the alert path's latency predictable: one Bedrock call,
+with the Ring device lookup running alongside it.
 
-Revisit this if a later step needs the model to choose between actions --
-e.g. deciding whether to run a repeat-visitor lookup before or after
-classification -- rather than follow this fixed order. That's the point at
-which an agent framework would earn its complexity here.
+**The catch-up summary** (`summary/catchUpAgent.ts`) is a
+[Strands Agents](https://strandsagents.com) agent, using the TypeScript SDK
+(`@strands-agents/sdk`) with Claude Haiku 4.5 on Bedrock. Here the model
+does have decisions to make: what "while I was asleep" or "this morning"
+means, whether to filter by Signal Class or category, and whether counts or
+individual alerts answer the question. See below.
+
+Bedrock AgentCore, which hosts and operates agents as a managed AWS
+runtime, isn't used: the catch-up agent runs in the same Express process as
+the rest of the backend, a short request-response call over the
+household's own data, so a separately hosted runtime would add deployment
+without adding capability at this scale. It's the natural next step if the
+agent moves to a hosted deployment or gains long-running sessions.
+
+## Catch-up summary ("What did I miss?")
+
+The companion app's **Catch up** panel answers "What did I miss?" for the
+time since the app was last open (kept in the browser's localStorage when
+the page is hidden), or a question the household types, such as "Did a
+package come today?". `POST /catch-up` runs the agent with three read-only
+tools:
+
+- `get_current_time`: the time and quiet hours in the household's time zone.
+- `list_alerts`: delivered alerts in a time window, optionally filtered by
+  Signal Class or category, each with its local time, camera, description,
+  Signal Class and whether it was a repeat visit.
+- `count_alerts`: totals for a window, by Signal Class, category and camera.
+
+The tools read `delivered_alerts`, which stores each alert exactly as the
+companion app received it (`db/alertHistoryStore.ts`). The same table backs
+`GET /alerts`, so the app shows recent alerts again after a reload; only
+alerts that arrive live vibrate. The system prompt asks for plain sentences
+under 80 words, the direct answer first, Urgent and Notable alerts before
+Routine ones, no markdown or symbols (they read badly on a braille
+display), and nothing the tools didn't return. The model runs at
+temperature 0 through the Converse API without streaming, so it needs only
+the `bedrock:InvokeModel` permission classification already has.
+
+The tests drive the real Strands agent loop with a scripted model in place
+of Bedrock (`tests/summary/catchUpAgent.test.ts`): it calls the tools in
+turn, and the test checks that each tool's result reached the model before
+its next turn and that the final text comes back as the answer.
 
 ## Personalization without an account system
 

@@ -1,18 +1,21 @@
 // Companion app's single view: connection status, push opt-in, the latest
 // alert as a live-announced context card with its score and delivery
-// details beside it, a summary and short history of earlier alerts, and a
-// Settings toggle for personalization preferences (quiet hours,
-// known-visitor tagging, haptic overrides) and the household's data.
+// details beside it, a "Catch up" summary of what happened while the app
+// was closed, a summary and short history of earlier alerts, and a Settings
+// toggle for personalization preferences (quiet hours, known-visitor
+// tagging, haptic overrides) and the household's data.
 
 import { useState } from "react";
 import { AlertDetails } from "../components/AlertDetails";
 import { AlertSummary } from "../components/AlertSummary";
+import { CatchUpPanel } from "../components/CatchUpPanel";
 import { ClassGuide } from "../components/ClassGuide";
 import { ConnectionStatus } from "../components/ConnectionStatus";
 import { ContextCard } from "../components/ContextCard";
 import { EnablePushButton } from "../components/EnablePushButton";
 import { PrismMark } from "../components/PrismMark";
 import { SettingsPanel } from "../components/SettingsPanel";
+import { useLastSeen } from "../hooks/useLastSeen";
 import { useRealtimeEvents } from "../hooks/useRealtimeEvents";
 import { useVibration } from "../hooks/useVibration";
 import { usePreferences } from "../hooks/usePreferences";
@@ -21,6 +24,7 @@ export function HomePage() {
   const { status, events, latestEvent, latestLiveEvent, clear: clearEvents } = useRealtimeEvents();
   // Only alerts that arrive while the app is open vibrate, not ones loaded from history.
   useVibration(latestLiveEvent);
+  const lastSeen = useLastSeen();
   const { preferences, loading: preferencesLoading } = usePreferences();
   // Until preferences load, show times in this device's zone rather than the UTC default.
   const timeZone = preferencesLoading ? undefined : preferences.timeZone;
@@ -88,6 +92,7 @@ export function HomePage() {
           </section>
 
           <div className="layout__secondary">
+            <CatchUpPanel since={lastSeen} timeZone={timeZone} />
             <AlertSummary events={visualEvents} />
             {latestEvent?.channels.visual && (
               <section aria-label="How alerts are delivered">

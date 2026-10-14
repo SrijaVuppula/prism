@@ -1,7 +1,8 @@
 // Entry point. Wires up: webhook receiver, WebSocket server, push
 // subscription endpoints, preferences/known-visitor-tagging/feedback
-// endpoints, event snapshots, the household's data controls and history
-// retention, and the orchestration pipeline.
+// endpoints, event snapshots and recent alerts, the catch-up summary, the
+// household's data controls and history retention, and the orchestration
+// pipeline.
 
 import { createServer } from "node:http";
 import express from "express";
@@ -13,6 +14,7 @@ import { visitorsRouter } from "./visitors/routes";
 import { feedbackRouter } from "./feedback/routes";
 import { eventsRouter } from "./events/routes";
 import { dataRouter } from "./data/routes";
+import { summaryRouter } from "./summary/routes";
 import { startHistoryRetention } from "./db/retention";
 import { attachWebSocketServer } from "./api/websocket";
 import { logRingConnection } from "./ring/deviceDirectory";
@@ -33,6 +35,7 @@ app.use(visitorsRouter);
 app.use(feedbackRouter);
 app.use(eventsRouter);
 app.use(dataRouter);
+app.use(summaryRouter);
 
 // The WebSocket server upgrades HTTP connections on this same server (see
 // api/websocket.ts), so it needs the underlying http.Server rather than the

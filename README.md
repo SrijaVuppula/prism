@@ -10,6 +10,8 @@ Ring and Nest doorbells alert through sound and app pings only, which is a well-
 
 Prism connects Ring's real-time event stream to an AI context layer (Bedrock multimodal) and a custom, explainable Signal Score, then translates the result into distinct, purposeful haptic, visual, and push-notification patterns on a companion web app — fully in software, running on a device the user already owns. No custom hardware required.
 
+When you've been away, the app's **Catch up** panel answers "What did I miss?", or a question like "Did a package come today?", in a few plain sentences short enough for a braille display. It's a [Strands Agents](https://strandsagents.com) agent on Amazon Bedrock that looks up your recent alerts itself (see `docs/ARCHITECTURE.md`).
+
 ## Structure
 
 - `packages/prism-alert-engine` — Ring-agnostic core: a Bedrock classification wrapper, the Signal Score engine, and channel encoders (haptic/visual/push). Standalone and MIT-licensed; any doorbell or camera vendor could adopt it directly.
@@ -76,7 +78,7 @@ Alert history is kept for 30 days by default (`HISTORY_RETENTION_DAYS`) and can 
 
 The Ring integration follows Ring's Partner API documentation: one-way account linking (token exchange, the signed-nonce Account Link page, token refresh), v1.1 webhook ingestion (X-Signature verification, deduplication), snapshot downloads with privacy zones blacked out, and device lookups through the Ring API. It is covered by tests and exercised end to end with the event simulator, but has not yet been run against a live Ring account. The Signal Score engine is built and tested. Bedrock classification is wired end to end from the webhook receiver through the Signal Score engine to a channel decision. Real-time delivery is live: a WebSocket server broadcasts scored events to the companion web app, and Web Push notifications reach subscribed devices even when the app isn't in focus. Measured WebSocket delivery latency (`npm run measure-delivery-latency`) is sub-millisecond locally -- see `docs/ARCHITECTURE.md` for the methodology and numbers. The companion app itself renders the visual context card and triggers the haptic pattern for each alert.
 
-Personalization and session memory are also built and tested: repeat-visitor memory (Bedrock embeddings + pgvector similarity search, scoped to a rolling per-device session window), per-household preferences (quiet hours, haptic overrides, the known-visitor-tagging opt-in), and a feedback loop that adjusts Signal Score category weights from accumulated thumbs up/down votes.
+The catch-up summary is built and tested with a scripted model standing in for Bedrock. Personalization and session memory are also built and tested: repeat-visitor memory (Bedrock embeddings + pgvector similarity search, scoped to a rolling per-device session window), per-household preferences (quiet hours, haptic overrides, the known-visitor-tagging opt-in), and a feedback loop that adjusts Signal Score category weights from accumulated thumbs up/down votes.
 
 ## Accessibility
 

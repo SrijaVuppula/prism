@@ -1,11 +1,11 @@
 // Orchestration chain: normalized event -> Bedrock classification -> Signal
 // Score -> channel decision -> dispatch.
 //
-// This is a plain, linear async chain rather than a standalone agent
-// framework (AgentCore/Strands): there's no multi-step tool-calling or
-// planning here, just a fixed sequence, so a framework would add
-// indirection without buying anything yet. Revisit if a later step needs
-// the model to choose between actions rather than follow this fixed order.
+// This is a plain, linear async chain rather than an agent: every event
+// takes the same steps in the same order, and the model only describes one
+// snapshot, so there's nothing for it to decide. The catch-up summary,
+// where the model does choose what to look up, is a Strands agent instead
+// (summary/catchUpAgent.ts).
 //
 // Dispatch fans the channel payloads out over two independent paths: a
 // WebSocket broadcast to any companion app connected right now

@@ -19,6 +19,7 @@ export default defineConfig({
       "/alerts": BACKEND_ORIGIN,
       "/events": BACKEND_ORIGIN,
       "/data": BACKEND_ORIGIN,
+      "/catch-up": BACKEND_ORIGIN,
       "/health": BACKEND_ORIGIN,
     },
   },

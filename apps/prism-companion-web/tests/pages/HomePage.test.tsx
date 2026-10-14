@@ -90,9 +90,10 @@ describe("HomePage", () => {
     const loaded = event("evt_1", "A package on the doorstep.");
     mockUseRealtimeEvents.mockReturnValue({ status: "open", events: [loaded], latestEvent: loaded, latestLiveEvent: null });
 
-    render(<HomePage />);
+    const { getByRole } = render(<HomePage />);
 
     expect(vi.mocked(useVibration)).toHaveBeenLastCalledWith(null);
+    expect(getByRole("region", { name: "Catch up" })).toBeInTheDocument();
   });
 
   it("names the device on the latest and earlier alerts when the message carries one", () => {

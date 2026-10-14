@@ -682,6 +682,7 @@ button:disabled {
 }
 
 .tag-visitor input[type="text"],
+.catch-up input[type="text"],
 .settings-panel input,
 .settings-panel select {
   font: inherit;
@@ -997,6 +998,73 @@ button:disabled {
   margin: 0;
   font-size: 0.85rem;
   color: var(--muted);
+}
+
+/* ---------- Catch up ---------- */
+
+.catch-up {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.catch-up .section-title {
+  margin: 0;
+}
+
+.catch-up__missed {
+  align-self: flex-start;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
+}
+
+.catch-up__missed:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.catch-up__hint {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.catch-up__form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.9rem;
+}
+
+.catch-up__ask {
+  display: flex;
+  gap: 8px;
+}
+
+.catch-up__ask input {
+  flex: 1;
+  min-width: 0;
+}
+
+.catch-up__answer p {
+  margin: 0 0 6px;
+  line-height: 1.5;
+}
+
+.catch-up__answer p:last-child {
+  margin-bottom: 0;
+}
+
+.catch-up__status {
+  color: var(--muted);
+}
+
+.catch-up__error {
+  color: var(--urgent);
 }
 
 /* ---------- Your data ---------- */
