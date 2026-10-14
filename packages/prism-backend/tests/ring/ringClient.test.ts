@@ -103,6 +103,26 @@ describe("RingClient.downloadImage", () => {
   });
 });
 
+describe("RingClient.getPrivacyZones", () => {
+  it("reads the zones from GET /v1/devices/{id}/configurations", async () => {
+    const zone = { id: "z1", vertices: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 0.3 }] };
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse({
+        data: {
+          type: "device-configurations",
+          attributes: { motion_detection: { component_id: "0" }, image_enhancements: { privacy_zones: [zone] } },
+        },
+      }),
+    );
+    const client = new RingClient("t", "https://api.example.test", fetchImpl);
+
+    expect(await client.getPrivacyZones("ava1.ring.device.a")).toEqual({ zones: [zone], componentId: "0" });
+    const [url, init] = fetchImpl.mock.calls[0];
+    expect(String(url)).toBe("https://api.example.test/v1/devices/ava1.ring.device.a/configurations");
+    expect(init.method).toBe("GET");
+  });
+});
+
 describe("RingClient account linking calls", () => {
   it("reads the Account ID from GET /v1/users/me", async () => {
     const fetchImpl = vi.fn().mockResolvedValue(

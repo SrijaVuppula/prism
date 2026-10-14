@@ -5,6 +5,7 @@
 // (developer.amazon.com/docs/ring/api-documentation.html).
 
 import { getRingApiBaseUrl } from "./config";
+import { parsePrivacyZones, type DevicePrivacyZones } from "./privacyZones";
 
 export interface RingDevice {
   id: string;
@@ -86,6 +87,11 @@ export class RingClient {
   async completeAccountLink(nonce: string): Promise<void> {
     await this.requestJson("POST", "/v1/accounts/me/app-integrations", { nonce });
     await this.requestJson("PATCH", "/v1/accounts/me/app-integrations", { status: "completed" });
+  }
+
+  /** The device's privacy zones: GET /v1/devices/{id}/configurations. */
+  async getPrivacyZones(deviceId: string): Promise<DevicePrivacyZones> {
+    return parsePrivacyZones(await this.requestJson("GET", `/v1/devices/${encodeURIComponent(deviceId)}/configurations`));
   }
 
   /**

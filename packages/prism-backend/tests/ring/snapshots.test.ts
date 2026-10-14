@@ -8,6 +8,8 @@ import {
 } from "../../src/ring/snapshots";
 
 const IMAGE = { bytes: Buffer.from([0xff, 0xd8]), mediaType: "image/jpeg" };
+const MASKED = { bytes: Buffer.from([0xff, 0xd8, 0x00]), mediaType: "image/jpeg" };
+const ZONE = { id: "z1", vertices: [{ x: 0, y: 0 }, { x: 0.5, y: 0 }, { x: 0.5, y: 1 }] };
 
 describe("ring:// snapshot references", () => {
   it("round-trips device, moment, account and camera module", () => {
@@ -41,13 +43,22 @@ describe("RingSnapshotLoader", () => {
   const mediaNotFound = new RingApiError("no media", 416, "MEDIA_NOT_FOUND");
   const notReady = new RingApiError("not ready", 425, "RECORDING_NOT_READY");
   let downloadImage: ReturnType<typeof vi.fn>;
+  let getPrivacyZones: ReturnType<typeof vi.fn>;
+  let mask: ReturnType<typeof vi.fn>;
   let getToken: ReturnType<typeof vi.fn>;
   let sleep: ReturnType<typeof vi.fn>;
   let random: ReturnType<typeof vi.fn>;
   let clock: number;
 
   function loader() {
-    return new RingSnapshotLoader({ getToken, createClient: () => ({ downloadImage }), sleep, now: () => clock, random });
+    return new RingSnapshotLoader({
+      getToken,
+      createClient: () => ({ downloadImage, getPrivacyZones }),
+      mask,
+      sleep,
+      now: () => clock,
+      random,
+    });
   }
 
   function waits(): number[] {
@@ -56,6 +67,8 @@ describe("RingSnapshotLoader", () => {
 
   beforeEach(() => {
     downloadImage = vi.fn().mockResolvedValue(IMAGE);
+    getPrivacyZones = vi.fn().mockResolvedValue({ zones: [] });
+    mask = vi.fn().mockResolvedValue(MASKED);
     getToken = vi.fn().mockResolvedValue("token");
     // Waiting moves the clock on, as real time would.
     sleep = vi.fn().mockImplementation(async (ms: number) => {
@@ -139,5 +152,54 @@ describe("RingSnapshotLoader", () => {
     downloadImage.mockRejectedValueOnce(new RingApiError("busy", 503));
     await expect(target.load(other)).rejects.toThrow(/busy/);
     expect(await target.load(other)).toEqual(IMAGE);
+  });
+
+  describe("privacy zones", () => {
+    beforeEach(() => {
+      vi.spyOn(console, "log").mockImplementation(() => {});
+    });
+
+    it("leaves a frame from a device without privacy zones as it is", async () => {
+      expect(await loader().load(url)).toBe(IMAGE);
+      expect(getPrivacyZones).toHaveBeenCalledWith("dev");
+      expect(mask).not.toHaveBeenCalled();
+    });
+
+    it("blacks out the device's privacy zones before anything sees the frame", async () => {
+      getPrivacyZones.mockResolvedValue({ zones: [ZONE], componentId: "0" });
+      const camera0 = ringSnapshotUrl({ deviceId: "dev", timestamp: EVENT_TIME, componentId: "0" });
+
+      expect(await loader().load(camera0)).toBe(MASKED);
+      expect(mask).toHaveBeenCalledWith(IMAGE, [ZONE]);
+    });
+
+    it("doesn't use the frame when the zones can't be read", async () => {
+      getPrivacyZones.mockRejectedValue(new RingApiError("busy", 503));
+      await expect(loader().load(url)).rejects.toThrow(/busy/);
+      expect(mask).not.toHaveBeenCalled();
+    });
+
+    it("doesn't use a frame from a camera module Ring reports no zones for", async () => {
+      getPrivacyZones.mockResolvedValue({ zones: [ZONE], componentId: "0" });
+      const camera1 = ringSnapshotUrl({ deviceId: "dev", timestamp: EVENT_TIME, componentId: "1" });
+      await expect(loader().load(camera1)).rejects.toThrow(/module 0 only/);
+    });
+
+    it("reads a device's zones again after five minutes, or after a failed read", async () => {
+      const target = loader();
+      await target.load(url);
+      await target.load(ringSnapshotUrl({ deviceId: "dev", timestamp: EVENT_TIME + 1 }));
+      expect(getPrivacyZones).toHaveBeenCalledTimes(1);
+
+      clock += 5 * 60_000;
+      await target.load(ringSnapshotUrl({ deviceId: "dev", timestamp: EVENT_TIME + 2 }));
+      expect(getPrivacyZones).toHaveBeenCalledTimes(2);
+
+      getPrivacyZones.mockRejectedValueOnce(new Error("offline"));
+      clock += 5 * 60_000;
+      await expect(target.load(ringSnapshotUrl({ deviceId: "dev", timestamp: EVENT_TIME + 3 }))).rejects.toThrow(/offline/);
+      await target.load(ringSnapshotUrl({ deviceId: "dev", timestamp: EVENT_TIME + 4 }));
+      expect(getPrivacyZones).toHaveBeenCalledTimes(4);
+    });
   });
 });

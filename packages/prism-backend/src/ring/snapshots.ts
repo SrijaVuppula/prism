@@ -4,11 +4,18 @@
 // multimodalContext.ts) resolves by downloading that frame with the Ring
 // API's image download endpoint.
 //
+// Before a downloaded frame is used, the device's privacy zones are blacked
+// out (privacyZones.ts), so no part of Prism -- classification, embeddings,
+// or the companion app -- sees an area the owner marked private. If the
+// zones can't be read, the frame isn't used at all and the alert falls back
+// to Ring's event type.
+//
 // A snapshot is read up to three times per event (classification, the
 // optional image embedding, and the companion app showing it), so recent
 // downloads are kept in a small in-memory cache.
 
 import { getRingApiToken } from "./accessTokens";
+import { maskPrivacyZones, zonesForComponent, type DevicePrivacyZones, type PrivacyZone } from "./privacyZones";
 import { RingApiError, RingClient, type RingImage } from "./ringClient";
 
 const SCHEME = "ring:";
@@ -75,10 +82,13 @@ const RETRY_BUDGET_MS = 20_000;
 /** After this long, Ring treats missing media for an event as unavailable for good. */
 const MEDIA_READY_WINDOW_MS = 120_000;
 const CACHE_SIZE = 32;
+/** Owners can change privacy zones at any time, so they're re-read this often. */
+const ZONES_TTL_MS = 5 * 60_000;
 
 export interface RingSnapshotLoaderDeps {
   getToken: (accountId?: string) => Promise<string | null>;
-  createClient: (token: string) => Pick<RingClient, "downloadImage">;
+  createClient: (token: string) => Pick<RingClient, "downloadImage" | "getPrivacyZones">;
+  mask: (image: RingImage, zones: PrivacyZone[]) => Promise<RingImage>;
   sleep: (ms: number) => Promise<void>;
   /** Epoch milliseconds, comparable with a Ring event's timestamp. */
   now: () => number;
@@ -89,6 +99,7 @@ export interface RingSnapshotLoaderDeps {
 const defaultDeps: RingSnapshotLoaderDeps = {
   getToken: (accountId) => getRingApiToken(accountId),
   createClient: (token) => new RingClient(token),
+  mask: maskPrivacyZones,
   sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   now: () => Date.now(),
   random: () => Math.random(),
@@ -96,6 +107,7 @@ const defaultDeps: RingSnapshotLoaderDeps = {
 
 export class RingSnapshotLoader {
   private readonly cache = new Map<string, Promise<RingImage>>();
+  private readonly zones = new Map<string, { readAt: number; pending: Promise<DevicePrivacyZones> }>();
 
   constructor(private readonly deps: RingSnapshotLoaderDeps = defaultDeps) {}
 
@@ -125,6 +137,31 @@ export class RingSnapshotLoader {
       throw new RingApiError("No Ring access token to download the snapshot with (link a Ring account or set RING_ACCESS_TOKEN)");
     }
     const client = this.deps.createClient(token);
+    // Read the zones while the frame downloads.
+    const zones = this.privacyZones(client, ref.deviceId);
+    zones.catch(() => {});
+    const image = await this.downloadWithRetries(client, ref);
+
+    const applicable = zonesForComponent(await zones, ref.componentId);
+    if (applicable.length === 0) return image;
+    const masked = await this.deps.mask(image, applicable);
+    console.log(`[ring] blacked out ${applicable.length} privacy zone(s) in the snapshot from ${ref.deviceId}`);
+    return masked;
+  }
+
+  private privacyZones(client: Pick<RingClient, "getPrivacyZones">, deviceId: string): Promise<DevicePrivacyZones> {
+    const cached = this.zones.get(deviceId);
+    if (cached && this.deps.now() - cached.readAt < ZONES_TTL_MS) return cached.pending;
+
+    const pending = client.getPrivacyZones(deviceId);
+    this.zones.set(deviceId, { readAt: this.deps.now(), pending });
+    pending.catch(() => {
+      if (this.zones.get(deviceId)?.pending === pending) this.zones.delete(deviceId);
+    });
+    return pending;
+  }
+
+  private async downloadWithRetries(client: Pick<RingClient, "downloadImage">, ref: RingSnapshotRef): Promise<RingImage> {
     const deadline = Math.min(this.deps.now() + RETRY_BUDGET_MS, ref.timestamp + MEDIA_READY_WINDOW_MS);
 
     for (let attempt = 0; ; attempt += 1) {

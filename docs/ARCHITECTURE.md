@@ -81,6 +81,21 @@ there. The event simulator sends the same v1.1 webhooks, with its fixture
 photo and "Front Door (simulator)" label in a `simulator` attribute real
 webhooks never carry.
 
+**Privacy zones** (`privacyZones.ts`). Ring owners can mark parts of a
+camera's view as private, and Ring's guidance is to always obscure those
+areas or avoid processing them. Before a downloaded frame is used, the
+snapshot loader reads the device's zones from
+`GET /v1/devices/{id}/configurations` (`image_enhancements.privacy_zones`,
+polygons with vertices normalized to the frame) and fills each one in black
+with `sharp`. The loader is the only way a Ring frame enters Prism, so
+classification, the image embedding and the companion app all see the
+masked frame, and the unmasked one is never stored. The zones are read
+while the frame downloads, so they add no latency, and are cached for five
+minutes since owners can change them. If they can't be read, or the frame
+comes from a camera module Ring reports no zones for (Ring reports zones
+for one module of a multi-camera device), the frame isn't used and the
+alert falls back to Ring's event type, as for a failed download.
+
 **Device names** (`deviceDirectory.ts`). Webhooks identify a device by id
 only, so for each event the pipeline looks up the device's name with
 `GET /v1/devices` and sends it with the alert ("Front Door · Person · 95%
