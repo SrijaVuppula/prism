@@ -55,11 +55,11 @@ const MAX_COUNTED_ALERTS = 500;
 export const SYSTEM_PROMPT = `You are Prism's catch-up assistant. Prism turns Ring doorbell events into alerts for deaf, hard-of-hearing and DeafBlind people. Answer the household's question about their doorbell alerts using only what the tools return. Never guess or invent an event.
 
 Choosing alerts:
-- "What did I miss?" or "since I last checked": use list_new_alerts, which returns exactly the alerts that arrived since the household last looked. Mention each Urgent and Notable one.
+- "What did I miss?" or "since I last checked": use list_new_alerts, which returns exactly the alerts that arrived since the household last looked. Start your answer with its headline, word for word, then describe each Urgent and Notable alert without giving any other counts.
 - "While I was asleep", "overnight" or "last night": every alert says whether it happened during the household's sleep hours (duringSleepHours). Answer only from alerts where it's true, from the most recent night, and leave every other alert out, even if it was recent.
 - Other times, such as "today" or "this morning": call get_current_time first, then list_alerts with since and until.
 
-Use the counts the tools give rather than counting yourself. When an alert is a repeatVisit, say the same visitor came again rather than counting them as someone new.
+Never count alerts yourself; use the counts and headlines the tools give. When an alert is a repeatVisit, say the same visitor came again rather than describing them as someone new.
 
 Write for someone reading quickly or on a braille display: plain sentences, no markdown, no lists with symbols, no tables, no emoji. Start with the direct answer in one sentence. Then give what matters most first: Urgent alerts, then Notable ones. Sum up Routine alerts in one sentence unless asked about them. Use the times as the tools give them. Keep the whole answer under 80 words.
 
@@ -123,6 +123,23 @@ function tallyBy(alerts: CompanionEventMessage[], key: (alert: CompanionEventMes
   return counts;
 }
 
+/**
+ * The opening sentence of "What did I miss?", counted in code: "You have 5
+ * new alerts: 1 Urgent, 3 Notable and 1 Routine." The model is told to use
+ * it as written, since left to count for itself it merged a repeat visit
+ * into one alert.
+ */
+export function newAlertsHeadline(alerts: CompanionEventMessage[], lastLooked: string): string {
+  if (alerts.length === 0) return `No new alerts since you last looked (${lastLooked}).`;
+  const counts = tallyBy(alerts, (alert) => alert.event.scoring?.signalClass);
+  const parts = SIGNAL_CLASSES.filter((signalClass) => counts[signalClass]).map(
+    (signalClass) => `${counts[signalClass]} ${signalClass}`,
+  );
+  const list = parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}` : parts[0];
+  const total = `${alerts.length} new ${alerts.length === 1 ? "alert" : "alerts"}`;
+  return list ? `You have ${total}: ${list}.` : `You have ${total}.`;
+}
+
 const timeField = (what: string) =>
   z.string().optional().describe(`${what}, as an ISO 8601 date-time with a UTC offset, e.g. 2026-10-14T06:00:00Z`);
 
@@ -158,10 +175,9 @@ export function buildCatchUpTools(deps: CatchUpDeps, lastLooked: Date) {
     callback: async () => {
       const preferences = await deps.getPreferences();
       const alerts = await deps.listAlerts({ deliveredSince: lastLooked, limit: MAX_LISTED_ALERTS });
+      const looked = localTime(lastLooked, householdZone(preferences));
       return {
-        lastLooked: localTime(lastLooked, householdZone(preferences)),
-        count: alerts.length,
-        bySignalClass: tallyBy(alerts, (alert) => alert.event.scoring?.signalClass),
+        headline: newAlertsHeadline(alerts, looked),
         alerts: alerts.map((alert) => describeAlert(alert, preferences)),
       };
     },

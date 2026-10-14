@@ -6,6 +6,7 @@ import {
   buildCatchUpTools,
   catchUpPrompt,
   lastLookedAt,
+  newAlertsHeadline,
   SYSTEM_PROMPT,
   type CatchUpDeps,
 } from "../../src/summary/catchUpAgent";
@@ -86,11 +87,7 @@ describe("catch-up tools", () => {
     const result = (await toolsByName(d).list_new_alerts.invoke({})) as { lastLooked: string; count: number };
 
     expect(d.listAlerts).toHaveBeenCalledWith({ deliveredSince: LAST_LOOKED, limit: 50 });
-    expect(result).toMatchObject({
-      lastLooked: "Tue, Oct 13, 10:00 PM",
-      count: 3,
-      bySignalClass: { Notable: 1, Urgent: 1, Routine: 1 },
-    });
+    expect(result).toMatchObject({ headline: "You have 3 new alerts: 1 Urgent, 1 Notable and 1 Routine." });
   });
 
   it("marks each alert with whether it happened during sleep hours, so the model doesn't work it out", async () => {
@@ -148,6 +145,22 @@ describe("catch-up tools", () => {
       byCategory: { package: 1, person: 1, animal: 1 },
       byCamera: { "Front Door": 3 },
     });
+  });
+});
+
+describe("newAlertsHeadline", () => {
+  const [notable, urgent, routine] = ALERTS;
+
+  it("counts the new alerts by Signal Class, most urgent first, leaving out classes with none", () => {
+    expect(newAlertsHeadline([urgent, notable, notable, notable, routine], "x")).toBe(
+      "You have 5 new alerts: 1 Urgent, 3 Notable and 1 Routine.",
+    );
+    expect(newAlertsHeadline([notable, notable], "x")).toBe("You have 2 new alerts: 2 Notable.");
+    expect(newAlertsHeadline([routine], "x")).toBe("You have 1 new alert: 1 Routine.");
+  });
+
+  it("says plainly when nothing new arrived", () => {
+    expect(newAlertsHeadline([], "Tue, Oct 13, 10:00 PM")).toBe("No new alerts since you last looked (Tue, Oct 13, 10:00 PM).");
   });
 });
 
@@ -234,6 +247,7 @@ describe("answerCatchUp", () => {
     expect(SYSTEM_PROMPT).toMatch(/Never guess or invent an event/);
     expect(SYSTEM_PROMPT).toMatch(/list_new_alerts/);
     expect(SYSTEM_PROMPT).toMatch(/duringSleepHours/);
-    expect(SYSTEM_PROMPT).toMatch(/Use the counts the tools give/);
+    expect(SYSTEM_PROMPT).toMatch(/headline, word for word/);
+    expect(SYSTEM_PROMPT).toMatch(/Never count alerts yourself/);
   });
 });

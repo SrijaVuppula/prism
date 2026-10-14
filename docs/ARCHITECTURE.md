@@ -192,11 +192,15 @@ tools:
 
 Every alert the tools return carries its local time, camera, description,
 Signal Class, whether it was a repeat visit, and whether it happened during
-the sleep hours. Those two judgments, which alerts are new and which came
-while the household was asleep, are made in code rather than left to the
-model: in testing with the live model, asked "Did anyone come while I was
-asleep?", it listed recent evening visits and missed the one at 11 PM when
-it had to work the window out from times itself.
+the sleep hours. Three judgments are made in code rather than left to
+the model: which alerts are new, which came while the household was asleep,
+and how many there were (`list_new_alerts` returns an opening sentence such
+as "You have 5 new alerts: 1 Urgent, 3 Notable and 1 Routine.", which the
+model uses word for word). In testing with the live model, asked "Did
+anyone come while I was asleep?", it listed recent evening visits and
+missed the one at 11 PM when it had to work the window out from times
+itself, and when counting for itself it merged a repeat visit into one
+alert.
 
 The tools read `delivered_alerts`, which stores each alert exactly as the
 companion app received it (`db/alertHistoryStore.ts`). The same table backs
