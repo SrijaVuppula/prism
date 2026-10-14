@@ -143,6 +143,15 @@ describe("RingSnapshotLoader", () => {
     expect(sleep).not.toHaveBeenCalled();
   });
 
+  it("downloads again after the cache is cleared", async () => {
+    const target = loader();
+    await target.load(url);
+    target.clear();
+    await target.load(url);
+    expect(downloadImage).toHaveBeenCalledTimes(2);
+    expect(getPrivacyZones).toHaveBeenCalledTimes(2);
+  });
+
   it("downloads each snapshot once, but tries again after a failure", async () => {
     const target = loader();
     await Promise.all([target.load(url), target.load(url)]);

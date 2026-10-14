@@ -999,6 +999,43 @@ button:disabled {
   color: var(--muted);
 }
 
+/* ---------- Your data ---------- */
+
+.your-data {
+  grid-column: 1 / -1;
+}
+
+.your-data__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1rem;
+}
+
+.your-data__confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.your-data__confirm p {
+  margin: 0;
+}
+
+.your-data__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.your-data__delete {
+  align-self: flex-start;
+}
+
+button.button--danger {
+  border-color: var(--urgent);
+  color: var(--urgent);
+}
+
 /* ---------- Responsive ---------- */
 
 @media (max-width: 1100px) {

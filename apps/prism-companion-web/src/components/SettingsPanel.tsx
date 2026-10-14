@@ -1,7 +1,8 @@
 // Settings UI for the household's alert preferences: time zone, quiet
 // hours, the known-visitor-tagging opt-in (with its privacy disclosure
 // inline, per docs/ACCESSIBILITY.md), and per-Signal-Class haptic pattern
-// overrides.
+// overrides. Below the form, "Your data" explains what Prism stores and
+// deletes the alert history.
 // A plain form bound to usePreferences -- no separate "draft" state library,
 // just local component state seeded from the loaded preferences and PUT on
 // submit.
@@ -10,6 +11,7 @@ import { useEffect, useState } from "react";
 import type { SignalClass } from "prism-alert-engine";
 import { usePreferences } from "../hooks/usePreferences";
 import { deviceTimeZone, timeZoneLabel, timeZoneOptions } from "../lib/timeZones";
+import { YourDataSection } from "./YourDataSection";
 import type { UserPreferences } from "../types";
 
 const SIGNAL_CLASSES: SignalClass[] = ["Routine", "Notable", "Urgent"];
@@ -33,7 +35,7 @@ function textToPattern(text: string): number[] | undefined {
   return values.length > 0 ? values : undefined;
 }
 
-export function SettingsPanel({ onClose }: { onClose: () => void }) {
+export function SettingsPanel({ onClose, onHistoryDeleted }: { onClose: () => void; onHistoryDeleted?: () => void }) {
   const { preferences, loading, saveStatus, error, save } = usePreferences();
   const [draft, setDraft] = useState<UserPreferences>(preferences);
   const thisDevice = deviceTimeZone();
@@ -188,6 +190,8 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
           </p>
         </div>
       </form>
+
+      <YourDataSection onHistoryDeleted={onHistoryDeleted} />
     </section>
   );
 }

@@ -111,6 +111,12 @@ export class RingSnapshotLoader {
 
   constructor(private readonly deps: RingSnapshotLoaderDeps = defaultDeps) {}
 
+  /** Forgets every downloaded snapshot and privacy-zone setting, e.g. when the household deletes its history. */
+  clear(): void {
+    this.cache.clear();
+    this.zones.clear();
+  }
+
   load(snapshotUrl: string): Promise<RingImage> {
     const cached = this.cache.get(snapshotUrl);
     if (cached) return cached;

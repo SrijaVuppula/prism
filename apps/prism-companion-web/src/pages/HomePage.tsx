@@ -18,7 +18,7 @@ import { useVibration } from "../hooks/useVibration";
 import { usePreferences } from "../hooks/usePreferences";
 
 export function HomePage() {
-  const { status, events, latestEvent } = useRealtimeEvents();
+  const { status, events, latestEvent, clear: clearEvents } = useRealtimeEvents();
   useVibration(latestEvent);
   const { preferences, loading: preferencesLoading } = usePreferences();
   // Until preferences load, show times in this device's zone rather than the UTC default.
@@ -51,7 +51,7 @@ export function HomePage() {
       </header>
 
       <main className="app__main">
-        {settingsOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} />}
+        {settingsOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} onHistoryDeleted={clearEvents} />}
 
         <div className="layout">
           <section className="layout__primary" aria-label="Latest alert">

@@ -2,7 +2,7 @@
 // event stream (prism-backend/src/api/websocket.ts), and keeps a short
 // history of received events in state.
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { CompanionEventMessage } from "../types";
 
 export type ConnectionStatus = "connecting" | "open" | "closed";
@@ -12,6 +12,8 @@ export interface RealtimeEventsState {
   /** Most recent events first. */
   events: CompanionEventMessage[];
   latestEvent: CompanionEventMessage | null;
+  /** Forgets the received events, e.g. after the household deletes its alert history. */
+  clear: () => void;
 }
 
 const RECONNECT_DELAY_MS = 2000;
@@ -82,5 +84,7 @@ export function useRealtimeEvents(): RealtimeEventsState {
     };
   }, []);
 
-  return { status, events, latestEvent: events[0] ?? null };
+  const clear = useCallback(() => setEvents([]), []);
+
+  return { status, events, latestEvent: events[0] ?? null, clear };
 }

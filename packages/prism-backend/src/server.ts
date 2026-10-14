@@ -1,6 +1,7 @@
 // Entry point. Wires up: webhook receiver, WebSocket server, push
 // subscription endpoints, preferences/known-visitor-tagging/feedback
-// endpoints, event snapshots, and the orchestration pipeline.
+// endpoints, event snapshots, the household's data controls and history
+// retention, and the orchestration pipeline.
 
 import { createServer } from "node:http";
 import express from "express";
@@ -11,6 +12,8 @@ import { preferencesRouter } from "./preferences/routes";
 import { visitorsRouter } from "./visitors/routes";
 import { feedbackRouter } from "./feedback/routes";
 import { eventsRouter } from "./events/routes";
+import { dataRouter } from "./data/routes";
+import { startHistoryRetention } from "./db/retention";
 import { attachWebSocketServer } from "./api/websocket";
 import { logRingConnection } from "./ring/deviceDirectory";
 
@@ -29,6 +32,7 @@ app.use(preferencesRouter);
 app.use(visitorsRouter);
 app.use(feedbackRouter);
 app.use(eventsRouter);
+app.use(dataRouter);
 
 // The WebSocket server upgrades HTTP connections on this same server (see
 // api/websocket.ts), so it needs the underlying http.Server rather than the
@@ -40,4 +44,5 @@ attachWebSocketServer(httpServer);
 httpServer.listen(PORT, () => {
   console.log(`prism-backend listening on :${PORT}`);
   void logRingConnection();
+  startHistoryRetention();
 });
