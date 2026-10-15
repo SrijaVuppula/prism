@@ -84,7 +84,7 @@ The catch-up summary is built and tested with a scripted model standing in for B
 
 ## Accessibility
 
-The companion app targets WCAG 2.2 AA, per the Ring Partner API guideline. An automated `axe-core` pass runs against every component and page state as part of `npm run test` (zero violations), color contrast is verified against the WCAG formula directly from the app's palette, and every interactive element is confirmed keyboard-reachable with no trap via a full keyboard-only navigation walk. See [docs/ACCESSIBILITY.md](./docs/ACCESSIBILITY.md) for the full checklist, methodology, and the one item (a manual screen-reader pass) still open.
+The companion app targets WCAG 2.2 AA, per the Ring Partner API guideline. An automated `axe-core` pass runs against every component and page state as part of `npm run test` (zero violations), color contrast is verified against the WCAG formula directly from the app's palette, and every interactive element is confirmed keyboard-reachable with no trap via a full keyboard-only navigation walk. A manual pass with VoiceOver in Safari covered the full alert flow: new alerts are announced as they arrive, the catch-up answer is read when it's ready, and every control is labeled. See [docs/ACCESSIBILITY.md](./docs/ACCESSIBILITY.md) for the full checklist and methodology.
 
 ## License
 

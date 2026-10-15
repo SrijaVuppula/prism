@@ -16,7 +16,17 @@
 - [x] All interactive elements reachable and operable via keyboard alone — verified with a real keyboard-only walk (`apps/prism-companion-web/tests/pages/HomePage.test.tsx`: tabs through every enabled interactive element on the page, in DOM order, asserting no element is skipped and no trap occurs) in addition to the native `<button>`/`<input>`/`<label>` markup throughout
 - [x] Automated axe-core pass with zero critical/serious violations — `axe-core` runs against every component and page state (empty, live alert, history, Settings open, visitor-tagging form, error states) in `apps/prism-companion-web/tests/**/*.test.tsx`, part of `npm run test`; zero violations across all states (color-contrast excluded from this pass since jsdom's computed styles aren't reliable for it — see the dedicated contrast test above)
 - [x] Catch-up answers are plain text written for reading at a glance or on a braille display: short sentences, the direct answer first, no markdown, symbols or tables (the agent's instructions in `prism-backend/src/summary/catchUpAgent.ts`). The answer area is a polite live region, so it's announced when it arrives without interrupting a new alert, and alerts loaded from history on opening the app don't vibrate
-- [ ] Manual screen-reader pass (VoiceOver or NVDA) on the full alert flow — not yet performed by a person on the built app; everything short of that (accessible names, roles, live-region behavior, focus order) is covered by the automated pass above, but an actual AT pass is the one item still worth doing by hand before submission
+- [x] Manual screen-reader pass on the full alert flow — performed by hand in October 2026 with VoiceOver on macOS in Safari, on the running app, starting from an empty history. All ten checks passed:
+  1. Headings: "Prism" (level 1), then "Latest alert", "Catch up", "Recent activity", "How alerts are delivered" and "Earlier" (level 2), reachable with VoiceOver's heading navigation
+  2. The empty state reads "Waiting for the first alert…" and the three Signal Classes with their channels
+  3. A new alert is announced on its own when it arrives, without moving focus: Signal Class, what the camera saw, and the time
+  4. The alert details read in order: the snapshot's description, Signal Class, device, the Signal Score meter ("65 out of 100, Notable"), each score factor, the vibration pattern as text, and which channels were sent
+  5. The feedback buttons announce as toggle buttons and report their pressed state
+  6. An Urgent alert is announced as it arrives
+  7. Catch up: "Checking your alerts…", then the answer is read on its own; the question field is announced with its label
+  8. Settings: every section is announced as a named group, every control has a label, and saving announces "Saved."
+  9. Your data: the delete confirmation moves focus to Cancel with the question read, Cancel returns focus to the delete button, and a completed delete announces "Alert history deleted."
+  10. Keyboard only, with VoiceOver off: every control is reachable with Tab and Shift+Tab in a sensible order, with a visible focus outline and no trap
 
 ## Vibration pattern specs (Web Vibration API)
 
