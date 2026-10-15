@@ -2,7 +2,7 @@
 
 Context-aware, multi-channel accessible alerts for Ring.
 
-![The Prism companion app. The latest alert is an Urgent one: a person at the door at 11:50 PM, with its Signal Score of 79 broken down beside it (person detected, model confidence, late night) and its vibration pattern of three long pulses. The Catch up panel answers "What did I miss?" in plain sentences, and earlier alerts for a delivery worker, a package and a cat are listed below.](docs/images/companion-app.jpg)
+![The Prism companion app. The latest alert is an Urgent one: a person at the door at 11:36 PM, with its Signal Score of 79 broken down beside it (person detected, model confidence, late night) and its vibration pattern of three long pulses. The Catch up panel answers "What did I miss?": "You have 5 new alerts: 1 Urgent, 3 Notable and 1 Routine", followed by a sentence on each. Earlier alerts for a delivery worker who came twice, a package and a cat are listed below.](docs/images/companion-app.jpg)
 
 ## The problem
 
