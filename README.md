@@ -1,26 +1,76 @@
 # Prism
 
-Context-aware, multi-channel accessible alerts for Ring.
+Doorbell alerts you can see and feel. Context-aware, multi-channel accessible alerts for Ring.
+
+**Try it live: [d2w68k35faj3ab.cloudfront.net](https://d2w68k35faj3ab.cloudfront.net)**. No sign-up; it works on a phone or a laptop.
+
+1. Press **Send a test visitor**. Within a few seconds the alert arrives with its Signal Class, its score and the reasons behind it. Each press sends the next of five visitors: a doorbell press, a cat, a package, the same visitor again, then a night-time visit. On Android Chrome, Notable and Urgent alerts also vibrate.
+2. Under **Catch up**, press **What did I miss?**, or ask something like "Did anyone come while I was asleep?".
+
+The demo runs on AWS with simulated Ring events, and everyone trying it shares one household. To run Prism yourself, see [Setup](#setup) or [`infra/aws/demo`](infra/aws/demo/README.md).
 
 ![The Prism companion app. The latest alert is an Urgent one: a person at the door at 11:36 PM, with its Signal Score of 79 broken down beside it (person detected, model confidence, late night) and its vibration pattern of three long pulses. The Catch up panel answers "What did I miss?": "You have 5 new alerts: 1 Urgent, 3 Notable and 1 Routine", followed by a sentence on each. Earlier alerts for a delivery worker who came twice, a package and a cat are listed below.](docs/images/companion-app.jpg)
 
 ## The problem
 
-Ring and Nest doorbells alert through sound and app pings only, which is a well-documented failure mode for deaf, hard-of-hearing, and DeafBlind users. Today's fix is a separate proprietary hardware system (strobe/vibration pucks) that has no idea what the camera is actually seeing — it buzzes for any trigger, with no context.
+About 430 million people worldwide have disabling hearing loss ([WHO](https://www.who.int/news-room/fact-sheets/detail/deafness-and-hearing-loss)), and about 37.5 million adults in the US report some trouble hearing ([NIDCD](https://www.nidcd.nih.gov/health/statistics/quick-statistics-hearing)). Ring and Nest doorbells alert through sound and app pings, which deaf, hard-of-hearing and DeafBlind people can miss.
+
+Today's fix is separate alerting hardware. A Bellman Visit door transmitter ([$119.95](https://www.maxiaids.com/bellman-visit-door-transmitter)) and flash receiver ([$249.95](https://us.bellman.com/collections/visit-receivers)) cost about $370 at US list prices for one door and one room. They react to the chime, not to what the camera saw, so a parcel and a stranger at midnight flash the same way.
 
 ## What it does
 
-Prism connects Ring's real-time event stream to an AI context layer (Bedrock multimodal) and a custom, explainable Signal Score, then translates the result into distinct, purposeful haptic, visual, and push-notification patterns on a companion web app — fully in software, running on a device the user already owns. No custom hardware required.
+**AI describes what the camera saw. Plain code decides how urgent it is, and shows why.**
+
+Prism connects Ring's real-time events to Amazon Bedrock, which describes each snapshot, and to an explainable Signal Score, which rates the event Routine, Notable or Urgent. The companion web app, on a phone or computer the household already owns, shows every alert as a visual card, vibrates in a distinct pattern for Notable and Urgent alerts, and sends a push notification for Urgent ones. No extra hardware is needed.
 
 When you've been away, the app's **Catch up** panel answers "What did I miss?", or a question like "Did a package come today?", in a few plain sentences short enough for a braille display. It's a [Strands Agents](https://strandsagents.com) agent on Amazon Bedrock that looks up your recent alerts itself (see `docs/ARCHITECTURE.md`).
+
+What the model decides, and what code decides:
+
+- **The model** describes the snapshot (category, description, confidence) and, in Catch up, chooses what to look up and writes the answer.
+- **Code** computes the Signal Score from named factors (what was seen, the model's confidence, time of day, quiet hours, repeat visits, known visitors and the household's feedback), picks the channels, and, in Catch up, works out which alerts are new, which came during sleep hours, and how many there were.
+
+### How Prism uses the Ring API
+
+All Ring calls live in [`packages/prism-backend/src/ring`](packages/prism-backend/src/ring) and are made at runtime.
+
+| What for | Ring API | Code |
+| --- | --- | --- |
+| Receive doorbell presses and motion, with Smart Alerts sub-types | v1.1 webhooks, verified with `X-Signature` | [`webhookHandler.ts`](packages/prism-backend/src/ring/webhookHandler.ts), [`routes.ts`](packages/prism-backend/src/ring/routes.ts) |
+| Get each event's snapshot (webhooks carry no image) | `POST /v1/devices/{id}/media/image/download` | [`ringClient.ts`](packages/prism-backend/src/ring/ringClient.ts), [`snapshots.ts`](packages/prism-backend/src/ring/snapshots.ts) |
+| Black out the owner's privacy zones before anything analyzes or shows the image | `GET /v1/devices/{id}/configurations` | [`privacyZones.ts`](packages/prism-backend/src/ring/privacyZones.ts) |
+| Name the camera on each alert | `GET /v1/devices` | [`deviceDirectory.ts`](packages/prism-backend/src/ring/deviceDirectory.ts) |
+| Pick up events missed while the backend was down | `GET /v1/history/devices/{id}/events` | [`eventHistory.ts`](packages/prism-backend/src/ring/eventHistory.ts) |
+| Link a household's Ring account, and unlink it | OAuth token exchange and refresh, `GET /v1/users/me`, `POST` and `PATCH /v1/accounts/me/app-integrations`, the `app_integration_removed` webhook | [`accountLinking.ts`](packages/prism-backend/src/ring/accountLinking.ts), [`oauth.ts`](packages/prism-backend/src/ring/oauth.ts), [`linkPage.ts`](packages/prism-backend/src/ring/linkPage.ts) |
+
+[`docs/RING_READINESS.md`](docs/RING_READINESS.md) checks Prism against what Ring asks of partner apps before certification, including what's still to do.
+
+### How Prism uses AWS
+
+| Service | What for | Code |
+| --- | --- | --- |
+| Amazon Bedrock: Claude Haiku 4.5, through the US inference profile | Describing each snapshot | [`multimodalContext.ts`](packages/prism-backend/src/bedrock/multimodalContext.ts) |
+| Amazon Bedrock: Titan Text Embeddings V2, with pgvector | Recognizing a repeat visit | [`embeddings.ts`](packages/prism-backend/src/bedrock/embeddings.ts), [`repeatVisitorMemory.ts`](packages/prism-backend/src/bedrock/repeatVisitorMemory.ts) |
+| Strands Agents on Amazon Bedrock | The Catch up agent and its read-only tools | [`catchUpAgent.ts`](packages/prism-backend/src/summary/catchUpAgent.ts) |
+| IAM | A least-privilege policy: `bedrock:InvokeModel` on those two models only | [`bedrock-invoke-policy.json`](infra/aws/bedrock-invoke-policy.json) |
+| CloudFormation, EC2, CloudFront, Systems Manager | The live demo, with an instance role instead of stored keys | [`infra/aws/demo`](infra/aws/demo/README.md) |
+
+### Measured
+
+- **Classification:** 33 of 34 labeled photos (97%) classified correctly, including low light, motion blur and look-alike categories. Median 1.6 seconds per event, including scoring.
+- **Repeat-visitor matching:** the match threshold (0.60) sits above every similarity measured between different visitors (at most 0.569).
+- **Delivery:** the WebSocket broadcast step takes 0.1 ms at the 95th percentile, measured locally over 5,000 deliveries.
+- **Accessibility:** zero axe-core violations across every component and page state, and a manual VoiceOver pass of the full alert flow.
+
+Methods and full results are in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) and [`docs/ACCESSIBILITY.md`](docs/ACCESSIBILITY.md).
 
 ## Structure
 
 - `packages/prism-alert-engine` — Ring-agnostic core: a Bedrock classification wrapper, the Signal Score engine, and channel encoders (haptic/visual/push). Standalone and MIT-licensed; any doorbell or camera vendor could adopt it directly.
 - `packages/prism-backend` — Ring account linking, webhook ingestion and Ring API calls, Bedrock classification + orchestration, Postgres + pgvector event store.
 - `apps/prism-companion-web` — the React/PWA companion app that receives alerts in real time.
-- `infra/` — the Bedrock IAM policy and AWS setup notes, and a docker-compose setup (Postgres, plus an optional containerized backend).
-- `docs/` — architecture and accessibility notes.
+- `infra/` — the Bedrock IAM policy and AWS setup notes, a CloudFormation template for the public demo, and a docker-compose setup (Postgres, plus an optional containerized backend).
+- `docs/` — architecture, accessibility, privacy and Ring readiness notes.
 
 ## Setup
 
@@ -80,7 +130,7 @@ Alert history is kept for 30 days by default (`HISTORY_RETENTION_DAYS`) and can 
 
 The Ring integration follows Ring's Partner API documentation: one-way account linking (token exchange, the signed-nonce Account Link page, token refresh), v1.1 webhook ingestion (X-Signature verification, deduplication), snapshot downloads with privacy zones blacked out, device lookups, and reading the event history for missed events, all through the Ring API. It is covered by tests and exercised end to end with the event simulator, but has not yet been run against a live Ring account. The Signal Score engine is built and tested. Bedrock classification is wired end to end from the webhook receiver through the Signal Score engine to a channel decision. Real-time delivery is live: a WebSocket server broadcasts scored events to the companion web app, and Web Push notifications reach subscribed devices even when the app isn't in focus. Measured WebSocket delivery latency (`npm run measure-delivery-latency`) is sub-millisecond locally -- see `docs/ARCHITECTURE.md` for the methodology and numbers. The companion app itself renders the visual context card and triggers the haptic pattern for each alert.
 
-The catch-up summary is built and tested with a scripted model standing in for Bedrock. Personalization and session memory are also built and tested: repeat-visitor memory (Bedrock embeddings + pgvector similarity search, scoped to a rolling per-device session window), per-household preferences (quiet hours, haptic overrides, the known-visitor-tagging opt-in), and a feedback loop that adjusts Signal Score category weights from accumulated thumbs up/down votes.
+The catch-up summary is tested with a scripted model standing in for Bedrock, and was checked by hand against the live model. Personalization and session memory are also built and tested: repeat-visitor memory (Bedrock embeddings + pgvector similarity search, scoped to a rolling per-device session window), per-household preferences (quiet hours, haptic overrides, the known-visitor-tagging opt-in), and a feedback loop that adjusts Signal Score category weights from accumulated thumbs up/down votes.
 
 ## Accessibility
 
