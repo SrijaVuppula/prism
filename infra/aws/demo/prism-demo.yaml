@@ -1,0 +1,241 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Prism demo: one Ubuntu EC2 instance running the backend, Postgres and the
+  companion app, with an instance role for Amazon Bedrock and a CloudFront
+  distribution for HTTPS. See infra/aws/demo/README.md.
+
+Parameters:
+  CloudFrontPrefixListId:
+    Type: String
+    AllowedPattern: "^pl-[0-9a-f]+$"
+    Description: >-
+      The AWS-managed prefix list com.amazonaws.global.cloudfront.origin-facing
+      in this region, so only CloudFront can reach the instance.
+  InstanceType:
+    Type: String
+    Default: t3.small
+    AllowedValues: [t3.small, t3.medium]
+  UbuntuAmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id
+  RepositoryUrl:
+    Type: String
+    Default: https://github.com/SrijaVuppula/prism
+    Description: Public Git repository to deploy. Also given to push services as the sender's contact URL.
+  GitRef:
+    Type: String
+    Default: main
+  HouseholdTimeZone:
+    Type: String
+    Default: America/Los_Angeles
+    Description: IANA time zone the demo household's alerts and quiet hours use.
+  TestVisitorDailyLimit:
+    Type: Number
+    Default: 300
+    MinValue: 1
+    Description: Test visitors the demo sends per UTC day (each one calls Amazon Bedrock).
+  CatchUpDailyLimit:
+    Type: Number
+    Default: 200
+    MinValue: 1
+    Description: Catch-up answers the demo gives per UTC day (each one calls Amazon Bedrock).
+
+Conditions:
+  # EC2 public DNS names in us-east-1 use "compute-1" instead of the region.
+  IsUsEast1: !Equals [!Ref "AWS::Region", us-east-1]
+
+Resources:
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ec2.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        # Session Manager access instead of SSH; no key pair or open port 22.
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        # The same least-privilege grant as infra/aws/bedrock-invoke-policy.json.
+        - PolicyName: PrismBedrockInvoke
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: ClassifyThroughUsInferenceProfile
+                Effect: Allow
+                Action: bedrock:InvokeModel
+                Resource: !Sub arn:${AWS::Partition}:bedrock:us-east-2:${AWS::AccountId}:inference-profile/us.anthropic.claude-haiku-4-5-20251001-v1:0
+              - Sid: ClassifyFoundationModelOnlyThroughThatProfile
+                Effect: Allow
+                Action: bedrock:InvokeModel
+                Resource: !Sub arn:${AWS::Partition}:bedrock:*::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0
+                Condition:
+                  StringEquals:
+                    bedrock:InferenceProfileArn: !Sub arn:${AWS::Partition}:bedrock:us-east-2:${AWS::AccountId}:inference-profile/us.anthropic.claude-haiku-4-5-20251001-v1:0
+              - Sid: EmbedVisitorSignatures
+                Effect: Allow
+                Action: bedrock:InvokeModel
+                Resource: !Sub arn:${AWS::Partition}:bedrock:us-east-2::foundation-model/amazon.titan-embed-text-v2:0
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles: [!Ref InstanceRole]
+
+  InstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Prism demo - port 3000 from CloudFront only
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3000
+          ToPort: 3000
+          SourcePrefixListId: !Ref CloudFrontPrefixListId
+          Description: CloudFront origin-facing addresses
+
+  LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        ImageId: !Ref UbuntuAmiId
+        InstanceType: !Ref InstanceType
+        IamInstanceProfile: { Arn: !GetAtt InstanceProfile.Arn }
+        SecurityGroupIds: [!GetAtt InstanceSecurityGroup.GroupId]
+        MetadataOptions:
+          HttpTokens: required
+          HttpEndpoint: enabled
+        BlockDeviceMappings:
+          - DeviceName: /dev/sda1
+            Ebs: { VolumeSize: 20, VolumeType: gp3, Encrypted: true, DeleteOnTermination: true }
+        TagSpecifications:
+          - ResourceType: instance
+            Tags: [{ Key: Name, Value: prism-demo }]
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            # First boot: write the backend's settings, check out the
+            # repository and run infra/aws/demo/deploy.sh, then tell
+            # CloudFormation whether it worked. Logged to /var/log/prism-deploy.log.
+            set -uo pipefail
+            export HOME=/root
+            exec > >(tee -a /var/log/prism-deploy.log) 2>&1
+
+            signal() {
+              python3 -c 'import json, sys; print(json.dumps({"Status": sys.argv[1], "Reason": sys.argv[2][-900:], "UniqueId": "prism", "Data": sys.argv[1]}))' "$1" "$2" > /tmp/prism-signal.json
+              curl -sS -X PUT -H "Content-Type:" --data-binary @/tmp/prism-signal.json '${DeployWaitHandle}'
+            }
+
+            # Read by the prism service; these win over packages/prism-backend/.env.
+            cat > /etc/prism.env <<'ENV'
+            NODE_ENV=production
+            PORT=3000
+            COMPANION_APP_DIR=/opt/prism/apps/prism-companion-web/dist
+            AWS_REGION=us-east-2
+            BEDROCK_REGION=us-east-2
+            TEST_VISITOR_DAILY_LIMIT=${TestVisitorDailyLimit}
+            CATCH_UP_DAILY_LIMIT=${CatchUpDailyLimit}
+            VAPID_SUBJECT=${RepositoryUrl}
+            ENV
+
+            # Downloads wait for the Elastic IP, since attaching it replaces
+            # the address the instance booted with and drops its connections.
+            for _ in $(seq 60); do
+              token=$(curl -sS -X PUT http://169.254.169.254/latest/api/token -H "X-aws-ec2-metadata-token-ttl-seconds: 60")
+              public_ip=$(curl -sS -H "X-aws-ec2-metadata-token: $token" http://169.254.169.254/latest/meta-data/public-ipv4)
+              [ "$public_ip" = '${ElasticIp}' ] && break
+              sleep 5
+            done
+
+            if apt-get update -q && apt-get install -y -q git &&
+              git clone --depth 1 --branch '${GitRef}' '${RepositoryUrl}' /opt/prism &&
+              PRISM_TIME_ZONE='${HouseholdTimeZone}' bash /opt/prism/infra/aws/demo/deploy.sh; then
+              signal SUCCESS "Prism is running."
+            else
+              signal FAILURE "$(tail -n 12 /var/log/prism-deploy.log)"
+            fi
+
+  Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      LaunchTemplate:
+        LaunchTemplateId: !Ref LaunchTemplate
+        Version: !GetAtt LaunchTemplate.LatestVersionNumber
+
+  # A fixed address, so the CloudFront origin keeps working if the instance
+  # is stopped and started.
+  ElasticIp:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+
+  ElasticIpAssociation:
+    Type: AWS::EC2::EIPAssociation
+    Properties:
+      AllocationId: !GetAtt ElasticIp.AllocationId
+      InstanceId: !Ref Instance
+
+  DeployWaitHandle:
+    Type: AWS::CloudFormation::WaitConditionHandle
+
+  # The stack finishes only once the app is installed, running and has
+  # classified its first simulated events with Amazon Bedrock.
+  DeployWaitCondition:
+    Type: AWS::CloudFormation::WaitCondition
+    DependsOn: Instance
+    Properties:
+      Handle: !Ref DeployWaitHandle
+      Timeout: "1800"
+      Count: 1
+
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Comment: Prism demo
+        Enabled: true
+        HttpVersion: http2and3
+        IPV6Enabled: true
+        PriceClass: PriceClass_100
+        Origins:
+          - Id: prism-instance
+            DomainName: !If
+              - IsUsEast1
+              - !Sub
+                - ec2-${Dashed}.compute-1.amazonaws.com
+                - Dashed: !Join ["-", !Split [".", !Ref ElasticIp]]
+              - !Sub
+                - ec2-${Dashed}.${AWS::Region}.compute.amazonaws.com
+                - Dashed: !Join ["-", !Split [".", !Ref ElasticIp]]
+            CustomOriginConfig:
+              HTTPPort: 3000
+              OriginProtocolPolicy: http-only
+              # The catch-up summary can take several seconds.
+              OriginReadTimeout: 60
+        # The API, the WebSocket stream and index.html: never cached,
+        # every header, cookie and query string passed through.
+        DefaultCacheBehavior:
+          TargetOriginId: prism-instance
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]
+          CachedMethods: [GET, HEAD]
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad # Managed-CachingDisabled
+          OriginRequestPolicyId: 216adef6-5c7f-47e4-b989-5492eafa07d3 # Managed-AllViewer
+        # The companion app's fingerprinted build files: cached and compressed.
+        CacheBehaviors:
+          - PathPattern: /assets/*
+            TargetOriginId: prism-instance
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD]
+            CachedMethods: [GET, HEAD]
+            CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6 # Managed-CachingOptimized
+            Compress: true
+
+Outputs:
+  DemoUrl:
+    Description: The companion app, over HTTPS.
+    Value: !Sub https://${Distribution.DomainName}
+  InstanceId:
+    Description: For Session Manager (aws ssm start-session --target <id>).
+    Value: !Ref Instance

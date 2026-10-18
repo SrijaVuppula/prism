@@ -96,3 +96,9 @@ in `us-east-2`. Add one more statement to the policy for it:
   "Resource": "arn:aws:bedrock:<IMAGE_EMBEDDING_REGION>::foundation-model/amazon.titan-embed-image-v1"
 }
 ```
+
+## Public demo
+
+[`demo/`](demo/README.md) has a CloudFormation template that runs Prism as
+a public demo on one EC2 instance behind CloudFront, with an instance role
+carrying this same Bedrock grant.
