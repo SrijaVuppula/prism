@@ -4,7 +4,8 @@
 // was closed, a summary and short history of earlier alerts, and a Settings
 // toggle for personalization preferences (quiet hours, known-visitor
 // tagging, haptic overrides) and the household's data. A "Send a test
-// visitor" button shows each kind of alert without a real visitor.
+// visitor" button shows each kind of alert without a real visitor. A demo
+// build adds a short note on what to try.
 
 import { useState } from "react";
 import { AlertDetails } from "../components/AlertDetails";
@@ -13,6 +14,7 @@ import { CatchUpPanel } from "../components/CatchUpPanel";
 import { ClassGuide } from "../components/ClassGuide";
 import { ConnectionStatus } from "../components/ConnectionStatus";
 import { ContextCard } from "../components/ContextCard";
+import { DemoNote, isDemoNoteEnabled } from "../components/DemoNote";
 import { EnablePushButton } from "../components/EnablePushButton";
 import { PrismMark } from "../components/PrismMark";
 import { SettingsPanel } from "../components/SettingsPanel";
@@ -58,6 +60,7 @@ export function HomePage() {
       </header>
 
       <main className="app__main">
+        {isDemoNoteEnabled() && <DemoNote />}
         {settingsOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} onHistoryDeleted={clearEvents} />}
 
         <div className="layout">

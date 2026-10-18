@@ -59,6 +59,7 @@ describe("HomePage", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
     vi.clearAllMocks();
   });
 
@@ -67,6 +68,18 @@ describe("HomePage", () => {
     const { container, getByText } = render(<HomePage />);
     expect(getByText(/waiting for the first alert/i)).toHaveAttribute("role", "status");
     expect(getByText("Card, vibration and push")).toBeInTheDocument();
+    await expectNoA11yViolations(container);
+  });
+
+  it("shows the demo note only in a demo build, and the page still passes axe", async () => {
+    mockUseRealtimeEvents.mockReturnValue({ status: "open", events: [], latestEvent: null });
+    const { queryByRole, unmount } = render(<HomePage />);
+    expect(queryByRole("note", { name: "About this demo" })).not.toBeInTheDocument();
+    unmount();
+
+    vi.stubEnv("VITE_DEMO_NOTE", "1");
+    const { container, getByRole } = render(<HomePage />);
+    expect(getByRole("note", { name: "About this demo" })).toBeInTheDocument();
     await expectNoA11yViolations(container);
   });
 

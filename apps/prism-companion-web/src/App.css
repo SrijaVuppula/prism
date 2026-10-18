@@ -177,6 +177,27 @@ button:disabled {
   padding-top: 28px;
 }
 
+.demo-note {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 18px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius-md);
+  font-size: 0.95rem;
+}
+
+.demo-note p {
+  margin: 0;
+}
+
+.demo-note p + p {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
 .layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 360px;
