@@ -80,6 +80,15 @@ describe("broadcastEvent", () => {
     clientB.close();
   });
 
+  it("pings connected clients, so an idle connection stays open behind a proxy", async () => {
+    attachWebSocketServer(httpServer, 20);
+    const client = await connectClient(wsUrl);
+
+    await new Promise<void>((resolve) => client.once("ping", () => resolve()));
+
+    client.close();
+  });
+
   it("attachWebSocketServer is idempotent", () => {
     const first = attachWebSocketServer(httpServer);
     const second = attachWebSocketServer(httpServer);

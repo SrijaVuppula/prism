@@ -43,16 +43,31 @@ export class WebSocketDeliveryError extends Error {
 let wss: WebSocketServer | undefined;
 
 /**
+ * How often each client is pinged. Proxies and CDNs in front of the server
+ * (e.g. CloudFront) close a WebSocket that carries nothing for a while, and
+ * alerts can be hours apart.
+ */
+export const PING_INTERVAL_MS = 30_000;
+
+/**
  * Attaches a WebSocketServer to an existing HTTP server. Idempotent: calling
  * this more than once (e.g. across hot reloads in dev) returns the
  * already-attached server rather than creating a second one.
  */
-export function attachWebSocketServer(server: HttpServer): WebSocketServer {
+export function attachWebSocketServer(server: HttpServer, pingIntervalMs: number = PING_INTERVAL_MS): WebSocketServer {
   if (wss) {
     return wss;
   }
 
   const server_ = new WebSocketServer({ server, path: COMPANION_WS_PATH });
+
+  const pinger = setInterval(() => {
+    for (const client of server_.clients) {
+      if (client.readyState === WebSocket.OPEN) client.ping();
+    }
+  }, pingIntervalMs);
+  pinger.unref();
+  server_.on("close", () => clearInterval(pinger));
 
   server_.on("connection", (socket) => {
     console.log(`[websocket] client connected activeClients=${server_.clients.size}`);
