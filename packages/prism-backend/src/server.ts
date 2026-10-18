@@ -2,8 +2,8 @@
 // subscription endpoints, preferences/known-visitor-tagging/feedback
 // endpoints, event snapshots and recent alerts, the catch-up summary, the
 // household's data controls and history retention, reading Ring's event
-// history for missed events, the test-visitor button, and the
-// orchestration pipeline.
+// history for missed events, the test-visitor button, the orchestration
+// pipeline, and, when COMPANION_APP_DIR is set, the built companion app.
 
 import { createServer } from "node:http";
 import express from "express";
@@ -21,6 +21,7 @@ import { startHistoryRetention } from "./db/retention";
 import { attachWebSocketServer } from "./api/websocket";
 import { logRingConnection } from "./ring/deviceDirectory";
 import { startRingHistoryCatchUp } from "./ring/eventHistory";
+import { getCompanionAppDir, serveCompanionApp } from "./web/companionApp";
 
 loadEnv();
 
@@ -40,6 +41,13 @@ app.use(eventsRouter);
 app.use(dataRouter);
 app.use(summaryRouter);
 app.use(demoRouter);
+
+// Last, so it only answers what no API route did.
+const companionAppDir = getCompanionAppDir();
+if (companionAppDir) {
+  serveCompanionApp(app, companionAppDir);
+  console.log(`serving the companion app from ${companionAppDir}`);
+}
 
 // The WebSocket server upgrades HTTP connections on this same server (see
 // api/websocket.ts), so it needs the underlying http.Server rather than the

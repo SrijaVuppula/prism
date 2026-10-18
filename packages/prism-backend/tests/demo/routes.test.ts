@@ -83,6 +83,18 @@ describe("POST /test-visitor", () => {
     expect(startAlert).toHaveBeenCalledTimes(1);
   });
 
+  it("stops at TEST_VISITOR_DAILY_LIMIT for the day", async () => {
+    process.env.TEST_VISITOR_DAILY_LIMIT = "2";
+    resetTestVisitors();
+    for (const expected of [202, 202, 429]) {
+      const response = await press();
+      expect(response.status).toBe(expected);
+      vi.setSystemTime(Date.now() + 5_000);
+    }
+    expect(startAlert).toHaveBeenCalledTimes(2);
+    delete process.env.TEST_VISITOR_DAILY_LIMIT;
+  });
+
   it("is off when TEST_VISITOR is off", async () => {
     process.env.TEST_VISITOR = "off";
     expect((await press()).status).toBe(404);

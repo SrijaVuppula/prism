@@ -5,7 +5,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 vi.mock("../../src/summary/catchUpAgent", () => ({ answerCatchUp: vi.fn() }));
 
 import { answerCatchUp } from "../../src/summary/catchUpAgent";
-import { summaryRouter } from "../../src/summary/routes";
+import { resetCatchUpLimit, summaryRouter } from "../../src/summary/routes";
 
 let server: Server;
 let baseUrl: string;
@@ -26,6 +26,8 @@ afterAll(() => {
 
 beforeEach(() => {
   vi.mocked(answerCatchUp).mockReset().mockResolvedValue("Nothing happened.");
+  delete process.env.CATCH_UP_DAILY_LIMIT;
+  resetCatchUpLimit();
 });
 
 function post(body: unknown) {
@@ -58,6 +60,16 @@ describe("POST /catch-up", () => {
     expect((await post({ question: 42 })).status).toBe(400);
     expect((await post({ since: "yesterday" })).status).toBe(400);
     expect(answerCatchUp).not.toHaveBeenCalled();
+  });
+
+  it("stops at CATCH_UP_DAILY_LIMIT for the day, without asking the model", async () => {
+    process.env.CATCH_UP_DAILY_LIMIT = "1";
+    resetCatchUpLimit();
+    expect((await post({})).status).toBe(200);
+    const refused = await post({});
+    expect(refused.status).toBe(429);
+    expect(await refused.json()).toMatchObject({ error: expect.stringMatching(/for today/) });
+    expect(answerCatchUp).toHaveBeenCalledTimes(1);
   });
 
   it("answers 502 with a plain message when the agent fails", async () => {

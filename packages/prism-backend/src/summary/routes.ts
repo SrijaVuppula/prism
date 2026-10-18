@@ -1,13 +1,22 @@
 // POST /catch-up: the companion app's "What did I miss?" (see
 // catchUpAgent.ts). Body: { question?: string, since?: ISO date-time }.
-// Answers { answer } in plain text.
+// Answers { answer } in plain text. CATCH_UP_DAILY_LIMIT caps how many a
+// public deployment answers per day, since each one calls Amazon Bedrock.
 
 import express, { Router } from "express";
+import { DailyLimit, dailyLimitFromEnv } from "../demo/dailyLimit";
 import { answerCatchUp, type CatchUpRequest } from "./catchUpAgent";
 
 export const summaryRouter = Router();
 
 const MAX_QUESTION_LENGTH = 300;
+
+let dailyLimit: DailyLimit | null = null;
+
+/** Starts the daily count over, for tests. */
+export function resetCatchUpLimit(): void {
+  dailyLimit = null;
+}
 
 function parseRequest(body: unknown): CatchUpRequest | string {
   const { question, since } = (body ?? {}) as { question?: unknown; since?: unknown };
@@ -30,6 +39,11 @@ summaryRouter.post("/catch-up", express.json(), async (req, res) => {
   const request = parseRequest(req.body);
   if (typeof request === "string") {
     res.status(400).json({ error: request });
+    return;
+  }
+  dailyLimit ??= new DailyLimit(dailyLimitFromEnv("CATCH_UP_DAILY_LIMIT"));
+  if (!dailyLimit.take()) {
+    res.status(429).json({ error: "This demo has answered all its catch-up questions for today. Please try again tomorrow." });
     return;
   }
   try {

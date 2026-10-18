@@ -3,12 +3,14 @@
 // doorbell press, a cat, a package, the first visitor again, a night-time
 // visit) through the same path as a Ring webhook, so someone trying Prism
 // can feel each kind of alert without a terminal. TEST_VISITOR=off turns
-// it off.
+// it off, and TEST_VISITOR_DAILY_LIMIT caps how many a public deployment
+// sends per day, since each one calls Amazon Bedrock.
 
 import { Router } from "express";
 import { DEFAULT_PREFERENCES, getPreferencesStore } from "../preferences/preferencesStore";
 import { startAlert } from "../ring/routes";
 import { parseRingWebhook, toRingAlert } from "../ring/webhookHandler";
+import { DailyLimit, dailyLimitFromEnv } from "./dailyLimit";
 import { buildSimulatedWebhook, lateNight, SAMPLE_EVENTS } from "./testVisitors";
 
 export const demoRouter = Router();
@@ -18,11 +20,13 @@ const MIN_INTERVAL_MS = 3_000;
 
 let nextSample = 0;
 let lastSentAt = 0;
+let dailyLimit: DailyLimit | null = null;
 
-/** Starts the sequence over, for tests. */
+/** Starts the sequence and the daily count over, for tests. */
 export function resetTestVisitors(): void {
   nextSample = 0;
   lastSentAt = 0;
+  dailyLimit = null;
 }
 
 async function householdTimeZone(): Promise<string> {
@@ -41,6 +45,11 @@ demoRouter.post("/test-visitor", async (_req, res, next) => {
   const now = Date.now();
   if (now - lastSentAt < MIN_INTERVAL_MS) {
     res.status(429).json({ error: "One test visitor at a time. Try again in a few seconds." });
+    return;
+  }
+  dailyLimit ??= new DailyLimit(dailyLimitFromEnv("TEST_VISITOR_DAILY_LIMIT"));
+  if (!dailyLimit.take()) {
+    res.status(429).json({ error: "This demo has sent all its test visitors for today. Please try again tomorrow." });
     return;
   }
   lastSentAt = now;
