@@ -1,5 +1,5 @@
 // Shared types for prism-alert-engine.
-// Deliberately camera/vendor-agnostic — nothing here references Ring.
+// Deliberately camera/vendor-agnostic - nothing here references Ring.
 
 export type EventCategory = "person" | "package" | "vehicle" | "animal";
 
@@ -39,7 +39,7 @@ export interface PrismEvent {
   /**
    * Identifier of the physical device/camera this event came from, when the
    * source integration has one (e.g. a Ring device id). Optional and
-   * generic on purpose -- this package stays camera/vendor-agnostic -- but
+   * generic on purpose - this package stays camera/vendor-agnostic - but
    * it's what repeat-visitor session memory in prism-backend scopes its
    * lookups to, since "session window" is inherently per-device.
    */
@@ -64,7 +64,7 @@ export interface ContextCardPayload {
 
 /**
  * Per-Signal-Class haptic pattern override (Web Vibration API on/off pairs,
- * ms). Partial -- a signal class with no override falls back to
+ * ms). Partial - a signal class with no override falls back to
  * encodeHapticPattern()'s default from channels/haptic.ts. Lives here
  * (rather than only in prism-backend) since the companion app also needs
  * the shape to render/edit its settings UI without importing prism-backend.

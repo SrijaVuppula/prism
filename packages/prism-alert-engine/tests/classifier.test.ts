@@ -13,7 +13,7 @@ describe("StubClassifier", () => {
     expect(result.confidence).toBeLessThanOrEqual(1);
   });
 
-  it("ignores the snapshot URL passed in — a stub is not a real classifier", async () => {
+  it("ignores the snapshot URL passed in - a stub is not a real classifier", async () => {
     const classifier = new StubClassifier();
     const a = await classifier.classify("https://cdn.example.com/a.jpg");
     const b = await classifier.classify("https://cdn.example.com/b.jpg");

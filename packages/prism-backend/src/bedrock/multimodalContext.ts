@@ -90,9 +90,9 @@ function mediaTypeFromExtension(url: string): string {
 
 /**
  * Loads the snapshot's raw bytes. Supports ring:// references (a real Ring
- * event's frame, downloaded with the Ring API -- see ring/snapshots.ts),
- * plain http(s) URLs, and file:// URLs, so local fixture images -- e.g. for
- * the eval harness in ../../eval and the event simulator -- don't need to be
+ * event's frame, downloaded with the Ring API - see ring/snapshots.ts),
+ * plain http(s) URLs, and file:// URLs, so local fixture images - e.g. for
+ * the eval harness in ../../eval and the event simulator - don't need to be
  * hosted over HTTP to be classified. Also used by events/routes.ts to serve
  * the snapshot to the companion app.
  */

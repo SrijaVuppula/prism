@@ -3,7 +3,7 @@
 // value fails fast and loudly, and so no region or model id is ever
 // guessed in code.
 //
-// AWS credentials themselves are intentionally not part of this config --
+// AWS credentials themselves are intentionally not part of this config -
 // they come from the standard SDK credential provider chain (environment,
 // shared config file, or an IAM role), not from application config.
 
@@ -34,7 +34,7 @@ export interface BedrockEmbeddingConfig {
   modelId: string;
   /**
    * Output vector dimensionality. Must match the `vector(N)` column width
-   * in db/migrations/0005_event_embeddings.sql -- changing the embedding
+   * in db/migrations/0005_event_embeddings.sql - changing the embedding
    * model to one with a different dimension needs a migration, not just an
    * env change.
    */

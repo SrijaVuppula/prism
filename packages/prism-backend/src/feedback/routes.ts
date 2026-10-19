@@ -3,7 +3,7 @@
 // signalScore are supplied by the client rather than looked up server-side:
 // the companion app already has them from the WebSocket message it
 // rendered (see api/websocket.ts's CompanionEventMessage), and ring_events
-// has no classification/scoring columns to look them up from -- see the
+// has no classification/scoring columns to look them up from - see the
 // module comment on db/migrations/0008_alert_feedback.sql.
 
 import express, { Router } from "express";

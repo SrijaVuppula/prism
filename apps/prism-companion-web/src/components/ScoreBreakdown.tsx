@@ -1,5 +1,5 @@
 // "Why this score": every factor that moved the Signal Score, with its
-// signed contribution -- the explainable breakdown prism-alert-engine
+// signed contribution - the explainable breakdown prism-alert-engine
 // returns, in plain language.
 
 import type { ClassificationResult, ScoringResult } from "prism-alert-engine";

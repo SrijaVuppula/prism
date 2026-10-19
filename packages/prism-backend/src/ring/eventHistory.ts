@@ -6,8 +6,8 @@
 // same pipeline as a webhook.
 //
 // An event found within a few minutes still alerts as usual. An older one is
-// stored quietly -- no vibration or push for something that happened an
-// hour ago -- so it appears in the app's history and in "What did I miss?".
+// stored quietly - no vibration or push for something that happened an
+// hour ago - so it appears in the app's history and in "What did I miss?".
 // The history and the webhooks give the same event different ids, so events
 // are matched by device and time, and the history is only read for events
 // at least a minute old, by which time their webhook has normally arrived.

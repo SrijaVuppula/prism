@@ -1,6 +1,6 @@
 // "Send a test visitor": asks the backend to send the next simulated
 // doorbell event (prism-backend/src/demo/routes.ts) through the same path
-// as a Ring webhook, so a new household -- or anyone trying Prism -- can
+// as a Ring webhook, so a new household - or anyone trying Prism - can
 // see and feel each kind of alert without waiting for a real visitor.
 
 import { useState } from "react";

@@ -1,4 +1,4 @@
-// Web Vibration API pattern encoder — one distinct pattern per Signal Class.
+// Web Vibration API pattern encoder - one distinct pattern per Signal Class.
 // Keep this table in sync with docs/ACCESSIBILITY.md.
 
 import { SignalClass } from "../types";

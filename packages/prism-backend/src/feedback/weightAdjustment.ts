@@ -1,5 +1,5 @@
 // Turns accumulated thumbs up/down feedback into a SignalScoreWeights
-// adjustment -- the actual self-improvement loop, not just a stored
+// adjustment - the actual self-improvement loop, not just a stored
 // opinion: a category the household consistently downvotes gets a lower
 // base weight (so it scores lower, more often Routine, going forward); one
 // consistently upvoted gets a higher one. The bias is exposed in
@@ -7,7 +7,7 @@
 // learned adjustment is exactly as explainable as every hand-written factor
 // in prism-alert-engine/src/scoring.ts.
 //
-// prism-alert-engine itself stays a pure, storage-free scoring function --
+// prism-alert-engine itself stays a pure, storage-free scoring function -
 // all of the "learning" (reading feedback, computing a bias, caching it)
 // happens here in prism-backend and is handed to computeSignalScore() as
 // plain data.
@@ -53,7 +53,7 @@ let cache: { weights: SignalScoreWeights; expiresAt: number } | undefined;
  * Resolves the current scoring weights: the hand-tuned defaults plus a
  * feedback-derived per-category bias, cached briefly so a burst of events
  * doesn't mean a Postgres round trip per alert. Callers should treat a
- * rejected promise as "use DEFAULT_SIGNAL_SCORE_WEIGHTS instead" --
+ * rejected promise as "use DEFAULT_SIGNAL_SCORE_WEIGHTS instead" -
  * scoring must never block on the feedback loop being available.
  */
 export async function resolveSignalScoreWeights(

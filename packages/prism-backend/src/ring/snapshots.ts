@@ -1,12 +1,12 @@
 // Snapshots for real Ring events. Ring's webhooks carry no image, so a Ring
-// event's snapshotUrl is a ring:// reference -- device, moment, and the Ring
-// account it belongs to -- which loadSnapshotBytes() (bedrock/
+// event's snapshotUrl is a ring:// reference - device, moment, and the Ring
+// account it belongs to - which loadSnapshotBytes() (bedrock/
 // multimodalContext.ts) resolves by downloading that frame with the Ring
 // API's image download endpoint.
 //
 // Before a downloaded frame is used, the device's privacy zones are blacked
-// out (privacyZones.ts), so no part of Prism -- classification, embeddings,
-// or the companion app -- sees an area the owner marked private. If the
+// out (privacyZones.ts), so no part of Prism - classification, embeddings,
+// or the companion app - sees an area the owner marked private. If the
 // zones can't be read, the frame isn't used at all and the alert falls back
 // to Ring's event type.
 //

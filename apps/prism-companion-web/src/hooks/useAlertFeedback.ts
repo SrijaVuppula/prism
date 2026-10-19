@@ -1,6 +1,6 @@
 // Thumbs up/down feedback on an alert's classification
 // (prism-backend/src/feedback/routes.ts). Vote state is kept in memory only
-// (per component tree, this session) -- there's no need to persist it in
+// (per component tree, this session) - there's no need to persist it in
 // the browser since the backend is the source of truth and a page reload
 // re-renders from a fresh WebSocket history anyway.
 

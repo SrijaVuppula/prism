@@ -1,9 +1,9 @@
 // Turns a failed push subscription into a message the user can act on.
 
 /**
- * Chromium-based browsers without a push service -- VS Code's built-in
+ * Chromium-based browsers without a push service - VS Code's built-in
  * browser and other embedded Chromium views, or Brave with Google push
- * messaging turned off -- reject PushManager.subscribe() with an AbortError
+ * messaging turned off - reject PushManager.subscribe() with an AbortError
  * reading "Registration failed - push service not available". The raw text
  * suggests a server problem, so say what actually helps.
  */

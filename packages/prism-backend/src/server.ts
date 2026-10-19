@@ -51,7 +51,7 @@ if (companionAppDir) {
 
 // The WebSocket server upgrades HTTP connections on this same server (see
 // api/websocket.ts), so it needs the underlying http.Server rather than the
-// Express app itself -- app.listen() below returns one implicitly, but
+// Express app itself - app.listen() below returns one implicitly, but
 // creating it explicitly here lets attachWebSocketServer() run first.
 const httpServer = createServer(app);
 attachWebSocketServer(httpServer);

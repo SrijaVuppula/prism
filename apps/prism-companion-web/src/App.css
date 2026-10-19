@@ -352,7 +352,7 @@ button:disabled {
   z-index: 1;
 }
 
-/* One gentle glow when a new alert lands -- the on-screen counterpart of a
+/* One gentle glow when a new alert lands - the on-screen counterpart of a
    strobe. Two slow fades, not a flash, and skipped under reduced motion. */
 .hero__glow {
   position: absolute;

@@ -1,10 +1,10 @@
 // Wires Bedrock embeddings + pgvector similarity search into a single
 // repeat-visitor lookup for the orchestration pipeline. Needs the
 // classification result first (it embeds the visitor signature Bedrock
-// produced -- a short, consistent list of the subject's traits -- falling
+// produced - a short, consistent list of the subject's traits - falling
 // back to the description when there is none),
 // which is why this runs as a step after classifySnapshot() inside
-// agentOrchestration.ts rather than being folded into scoring.ts itself --
+// agentOrchestration.ts rather than being folded into scoring.ts itself -
 // prism-alert-engine has no Ring/Postgres/Bedrock dependencies and this
 // lookup needs all three.
 
@@ -23,7 +23,7 @@ import { getKnownVisitorTagStore } from "../db/knownVisitorTagStore";
 export interface RepeatVisitorResult {
   /** Matches within the current session window (see db/vectorStore.ts). 0 for a first-time visit. */
   repeatVisitCount: number;
-  /** Opt-in known-face match only -- see docs/ACCESSIBILITY.md's privacy note. */
+  /** Opt-in known-face match only - see docs/ACCESSIBILITY.md's privacy note. */
   isKnownVisitor: boolean;
   /** Stable cluster id this event was grouped under, for the companion app's opt-in tagging UI. */
   visitorGroupId: string;
@@ -55,7 +55,7 @@ async function embedSnapshotForMatching(event: PrismEvent): Promise<number[] | u
  *
  * `knownVisitorTaggingEnabled` gates isKnownVisitor entirely: even a
  * high-confidence repeat match never sets it unless the household has
- * opted in (preferences/preferencesStore.ts) -- repeatVisitCount is the
+ * opted in (preferences/preferencesStore.ts) - repeatVisitCount is the
  * only signal that's ever on by default, since it doesn't persist an
  * identity, just a same-session repetition count.
  */
@@ -66,7 +66,7 @@ export async function resolveRepeatVisitor(
 ): Promise<RepeatVisitorResult> {
   const deviceId = event.deviceId;
   if (!deviceId) {
-    // No device to scope a session window to (e.g. a synthetic/eval event) --
+    // No device to scope a session window to (e.g. a synthetic/eval event) -
     // there's nothing to look up, so this is a first-time, unknown visit.
     return { repeatVisitCount: 0, isKnownVisitor: false, visitorGroupId: randomUUID() };
   }

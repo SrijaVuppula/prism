@@ -1,6 +1,6 @@
 -- Thumbs up/down feedback on a dispatched alert's classification (see
 -- src/feedback/feedbackStore.ts). category/signal_class/signal_score are
--- stored denormalized at vote time -- ring_events has no classification/
+-- stored denormalized at vote time - ring_events has no classification/
 -- scoring columns (those are computed transiently in the pipeline, not
 -- persisted), and the companion app already has this event's classification
 -- and scoring in hand from the WebSocket message it rendered, so there's no

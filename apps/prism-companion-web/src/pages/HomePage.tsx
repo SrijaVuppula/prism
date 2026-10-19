@@ -52,7 +52,12 @@ export function HomePage() {
         <div className="app__header-actions">
           <ConnectionStatus status={status} />
           <EnablePushButton />
-          <button type="button" className="button button--ghost" onClick={() => setSettingsOpen((open) => !open)}>
+          <button
+            type="button"
+            className="button button--ghost"
+            aria-expanded={settingsOpen}
+            onClick={() => setSettingsOpen((open) => !open)}
+          >
             <span aria-hidden="true" className="button__icon">
               ⚙
             </span>

@@ -1,6 +1,6 @@
 // Triggers the Web Vibration API pattern for the latest event's Signal
 // Class. Keyed on event id (not pattern contents) so two consecutive alerts
-// of the same Signal Class each still vibrate -- deduping on pattern value
+// of the same Signal Class each still vibrate - deduping on pattern value
 // would silently swallow the second alert.
 //
 // Silently does nothing on browsers without Vibration API support (notably

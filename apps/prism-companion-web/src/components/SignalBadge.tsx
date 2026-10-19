@@ -1,4 +1,4 @@
-// Signal Class indicator. Icon + text together, deliberately -- Signal
+// Signal Class indicator. Icon + text together, deliberately - Signal
 // Class must never be conveyed by color alone (docs/ACCESSIBILITY.md).
 
 import type { SignalClass } from "prism-alert-engine";

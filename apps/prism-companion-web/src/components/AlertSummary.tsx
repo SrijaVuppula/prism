@@ -1,4 +1,4 @@
-// Counts of the alerts currently shown, by Signal Class -- a glanceable
+// Counts of the alerts currently shown, by Signal Class - a glanceable
 // read on how busy the door has been.
 
 import type { SignalClass } from "prism-alert-engine";

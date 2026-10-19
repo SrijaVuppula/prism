@@ -1,11 +1,11 @@
 // Storage for opt-in known-visitor tags (docs/ACCESSIBILITY.md's
-// "Known-visitor tagging -- privacy note": opt-in only, disclosed clearly,
-// local-only -- this table lives in the household's own Postgres and is
+// "Known-visitor tagging - privacy note": opt-in only, disclosed clearly,
+// local-only - this table lives in the household's own Postgres and is
 // never uploaded or shared anywhere else).
 //
 // A tag is keyed on visitor_group_id, the stable cluster id repeat-visitor
 // memory assigns to a run of visually-similar events (see
-// ../db/vectorStore.ts) -- tagging one event as "Mail carrier" tags every
+// ../db/vectorStore.ts) - tagging one event as "Mail carrier" tags every
 // event pgvector has grouped with it, past and future, not just that one
 // snapshot.
 

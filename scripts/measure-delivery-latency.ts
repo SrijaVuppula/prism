@@ -2,13 +2,13 @@
 // delivery layer (prism-backend/src/api/websocket.ts): from the moment the
 // backend calls broadcastEvent() to the moment a connected companion-app
 // client actually receives the message, over a real WebSocket connection
-// on a real HTTP server -- no mocks, no stubbed sockets.
+// on a real HTTP server - no mocks, no stubbed sockets.
 //
 // This is deliberately isolated from Bedrock classification latency
 // (already logged separately in bedrock/multimodalContext.ts and
 // bedrock/agentOrchestration.ts): the sub-second real-time delivery target
-// in docs/ARCHITECTURE.md is about this step specifically -- the one
-// api/websocket.ts owns -- not the full classify-then-deliver round trip,
+// in docs/ARCHITECTURE.md is about this step specifically - the one
+// api/websocket.ts owns - not the full classify-then-deliver round trip,
 // which is dominated by a network call to Bedrock this script never makes.
 //
 // Usage: npm run measure-delivery-latency [-- --events=200 --clients=3]

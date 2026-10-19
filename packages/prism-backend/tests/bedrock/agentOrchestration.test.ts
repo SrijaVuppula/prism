@@ -79,7 +79,7 @@ describe("runPipeline", () => {
       confidence: 0.95,
     });
 
-    // 23:00 UTC -- off-hours, so scoring should land Urgent for a
+    // 23:00 UTC - off-hours, so scoring should land Urgent for a
     // high-confidence, unknown, non-repeat person detection.
     const result = await runPipeline(baseEvent("2026-01-01T23:00:00.000Z"));
 
@@ -99,7 +99,7 @@ describe("runPipeline", () => {
       confidence: 0.8,
     });
 
-    // 14:00 UTC -- daytime, animal base weight is low, so this should stay Routine.
+    // 14:00 UTC - daytime, animal base weight is low, so this should stay Routine.
     const result = await runPipeline(baseEvent("2026-01-01T14:00:00.000Z"));
 
     expect(result.event.scoring?.signalClass).toBe("Routine");

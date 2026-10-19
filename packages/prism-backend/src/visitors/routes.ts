@@ -1,6 +1,6 @@
 // Opt-in known-visitor tagging endpoints. Strictly gated by
-// preferences.knownVisitorTaggingEnabled -- see docs/ACCESSIBILITY.md's
-// privacy note (opt-in only, disclosed clearly, local-only storage) --
+// preferences.knownVisitorTaggingEnabled - see docs/ACCESSIBILITY.md's
+// privacy note (opt-in only, disclosed clearly, local-only storage) -
 // so tagging is refused with a clear error until the household has turned
 // the feature on in Settings, rather than silently no-op'ing or (worse)
 // tagging anyway.

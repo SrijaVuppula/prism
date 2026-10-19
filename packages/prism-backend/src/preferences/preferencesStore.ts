@@ -8,7 +8,7 @@
 // preferences, this store follows the same single-household shape: one row,
 // keyed by a constant household id. That keeps today's behavior simple (one
 // set of preferences, matching the one set of push subscriptions everyone
-// shares) while keeping the schema forward-compatible -- swapping
+// shares) while keeping the schema forward-compatible - swapping
 // DEFAULT_HOUSEHOLD_ID for a real authenticated user/household id later is
 // a call-site change, not a schema migration, since household_id is
 // already a real column and not folded into a singleton assumption at the

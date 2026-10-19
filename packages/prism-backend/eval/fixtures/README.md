@@ -1,6 +1,6 @@
 # Fixture images
 
-One JPEG per entry in `../dataset.ts`, named `<id>.jpg` -- see that entry's
+One JPEG per entry in `../dataset.ts`, named `<id>.jpg` - see that entry's
 `notes` for what it should show. They're used by `npm run eval` (from
 `packages/prism-backend`) and as the snapshots the local event simulator
 sends (`npm run seed` from the repository root).

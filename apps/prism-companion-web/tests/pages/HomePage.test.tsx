@@ -2,7 +2,7 @@
 // companion app's single view (docs/ACCESSIBILITY.md: "all interactive
 // elements reachable and operable via keyboard alone"). Real external I/O
 // (the WebSocket connection, preference persistence, vibration) is mocked
-// at the same hook boundary prism-backend's tests mock AWS/Postgres at --
+// at the same hook boundary prism-backend's tests mock AWS/Postgres at -
 // everything downstream of those hooks is the real component tree.
 import { render, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -151,8 +151,12 @@ describe("HomePage", () => {
     const user = userEvent.setup();
     const { container, findByRole, getByRole } = render(<HomePage />);
 
-    await user.click(getByRole("button", { name: /^settings$/i }));
+    const toggle = getByRole("button", { name: /^settings$/i });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await user.click(toggle);
     await findByRole("group", { name: /quiet hours/i });
+    // The same button now closes Settings, and says it's expanded.
+    expect(getByRole("button", { name: /close settings/i })).toHaveAttribute("aria-expanded", "true");
 
     await expectNoA11yViolations(container);
   });

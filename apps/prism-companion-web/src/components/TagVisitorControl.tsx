@@ -1,7 +1,7 @@
 // Opt-in "tag this visitor" control (docs/ACCESSIBILITY.md's known-visitor
 // tagging privacy note: opt-in only, disclosed clearly). Only rendered by
 // ContextCard when the household has turned known-visitor tagging on in
-// Settings -- see SettingsPanel.tsx -- and the event carries a
+// Settings - see SettingsPanel.tsx - and the event carries a
 // visitorGroupId (repeat-visitor memory has run for it). An inline text
 // input rather than a browser prompt(), so the label entry is reachable and
 // readable the same way the rest of the app is.

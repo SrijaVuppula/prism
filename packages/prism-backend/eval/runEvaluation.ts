@@ -3,8 +3,8 @@
 // pipeline (classify -> score -> channel decision) and reports
 // classification accuracy and end-to-end latency.
 //
-// This calls the live Bedrock endpoint -- it's a live evaluation, not a
-// unit test -- so it needs valid AWS credentials, the same BEDROCK_REGION /
+// This calls the live Bedrock endpoint - it's a live evaluation, not a
+// unit test - so it needs valid AWS credentials, the same BEDROCK_REGION /
 // BEDROCK_MODEL_ID env vars the backend uses (read from the environment or
 // packages/prism-backend/.env), and a labeled fixture image for every entry
 // in the dataset (see fixtures/README.md).
@@ -95,7 +95,7 @@ function printReport(outcomes: EvalOutcome[]): void {
   }
   console.log(`  overall  ${correctCount}/${outcomes.length} (${((correctCount / outcomes.length) * 100).toFixed(0)}%)`);
   if (errorCount > 0) {
-    console.log(`  ${errorCount} event(s) errored (missing fixtures or pipeline failures) -- excluded from latency stats`);
+    console.log(`  ${errorCount} event(s) errored (missing fixtures or pipeline failures) - excluded from latency stats`);
   }
 
   const sorted = [...latencies].sort((a, b) => a - b);

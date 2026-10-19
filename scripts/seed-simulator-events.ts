@@ -1,15 +1,15 @@
 // Replays a realistic sequence of Ring webhook events against a locally
-// running prism-backend, so the full pipeline -- webhook receiver, Bedrock
-// classification, Signal Score, and delivery to the companion app -- can be
+// running prism-backend, so the full pipeline - webhook receiver, Bedrock
+// classification, Signal Score, and delivery to the companion app - can be
 // exercised end to end without waiting on live Ring device activity.
 //
 // Each event is a Ring v1.1 webhook (button_press, or motion_detected with
 // a Smart Alerts sub_type), signed the way Ring signs them: an HMAC-SHA256
 // of the body, keyed with RING_WEBHOOK_SECRET, in the X-Signature header.
 // Real Ring webhooks carry no image, so each one adds a `simulator`
-// attribute with a snapshot -- one of the labeled photos in
+// attribute with a snapshot - one of the labeled photos in
 // packages/prism-backend/eval/fixtures, as a file:// URL the backend reads
-// directly -- and the label "Front Door (simulator)". The events themselves
+// directly - and the label "Front Door (simulator)". The events themselves
 // are in packages/prism-backend/src/demo/testVisitors.ts, shared with the
 // companion app's "Send a test visitor" button. A file:// URL only works
 // when the backend runs on this machine; for a backend elsewhere, set

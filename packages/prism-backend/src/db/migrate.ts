@@ -14,7 +14,7 @@ import type { Pool } from "pg";
 import { loadEnv } from "../loadEnv";
 import { getPool } from "./pool";
 
-/** src/db/migrations -- resolved from the package root so it works from src/ and dist/. */
+/** src/db/migrations - resolved from the package root so it works from src/ and dist/. */
 export const MIGRATIONS_DIR = path.resolve(__dirname, "..", "..", "src", "db", "migrations");
 
 // Arbitrary constant key for pg_advisory_lock; only has to be unique among

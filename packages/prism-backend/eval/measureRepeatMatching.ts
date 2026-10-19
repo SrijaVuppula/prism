@@ -164,7 +164,7 @@ async function main(): Promise<void> {
   if (!imagesOn) {
     console.log("\nImage similarity: skipped (set BEDROCK_IMAGE_EMBEDDING_MODEL_ID, e.g. amazon.titan-embed-image-v1, to include it)");
   } else if (imageError !== undefined) {
-    console.log("\nImage similarity: image embedding call failed -- check the model is enabled for this account and region:");
+    console.log("\nImage similarity: image embedding call failed - check the model is enabled for this account and region:");
     console.log(imageError);
   } else {
     const different = differentPairs.map(([a, b]) => cosineSimilarity(a.imageEmbedding!, b.imageEmbedding!));

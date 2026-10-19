@@ -1,5 +1,5 @@
-// Sends forged Ring webhooks -- one unsigned, one signed with the wrong key
-// -- to a Prism server and checks that it rejects both with a 401 before
+// Sends forged Ring webhooks - one unsigned, one signed with the wrong key
+// - to a Prism server and checks that it rejects both with a 401 before
 // anything reaches the alert pipeline. See
 // packages/prism-backend/src/demo/forgedWebhooks.ts.
 //

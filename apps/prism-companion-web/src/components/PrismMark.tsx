@@ -1,6 +1,6 @@
 // The Prism logo mark: a beam of light entering a prism and leaving as a
 // spectrum, echoing what the app does with a single doorbell event.
-// Decorative -- the wordmark next to it carries the name.
+// Decorative - the wordmark next to it carries the name.
 
 export function PrismMark({ size = 32 }: { size?: number }) {
   return (

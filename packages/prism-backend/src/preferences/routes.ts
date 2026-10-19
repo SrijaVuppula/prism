@@ -1,6 +1,6 @@
 // Endpoints for reading and updating the household's alert preferences
 // (time zone, haptic overrides, quiet hours, known-visitor-tagging opt-in). Same
-// single-household shape as preferencesStore.ts -- no userId in the
+// single-household shape as preferencesStore.ts - no userId in the
 // request, matching push/routes.ts and the rest of the no-auth codebase.
 
 import express, { Router } from "express";

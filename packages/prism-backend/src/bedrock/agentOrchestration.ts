@@ -9,14 +9,14 @@
 //
 // Dispatch fans the channel payloads out over two independent paths: a
 // WebSocket broadcast to any companion app connected right now
-// (api/websocket.ts), and -- when the Signal Class calls for it -- Web Push
+// (api/websocket.ts), and - when the Signal Class calls for it - Web Push
 // so an alert still lands when the app isn't in focus (push/dispatchPush.ts).
 // Both are best-effort: a delivery failure is logged, not thrown, so it
 // never turns a successfully classified and scored event into a rejected
 // pipeline promise.
 //
 // Personalization is layered on the same way: preferences, repeat-visitor
-// memory, and the feedback-driven scoring weights are each best-effort --
+// memory, and the feedback-driven scoring weights are each best-effort -
 // a lookup failure logs a warning and falls back to the conservative
 // default rather than ever blocking alert delivery on Postgres being
 // reachable.
@@ -57,7 +57,7 @@ import { getAlertHistoryStore } from "../db/alertHistoryStore";
  *   (../preferences/preferencesStore.ts).
  *
  * Pass an explicit context to skip all of that and use fixed values instead
- * (tests, the eval harness, or any caller that already knows better) --
+ * (tests, the eval harness, or any caller that already knows better) -
  * runPipeline() only resolves these for real when `context` is omitted.
  */
 export interface OrchestrationContext {
@@ -80,7 +80,7 @@ export interface ChannelPayloads {
 
 export interface PipelineOptions {
   /**
-   * When false, skip delivery (WebSocket broadcast and Web Push) -- for the
+   * When false, skip delivery (WebSocket broadcast and Web Push) - for the
    * eval harness, which measures classification and scoring, not delivery.
    * Defaults to true.
    */
@@ -163,7 +163,7 @@ async function resolvePreferences(eventId: string): Promise<UserPreferences> {
 /**
  * Best-effort scoring-weights lookup (hand-tuned defaults plus the
  * feedback-derived per-category bias). Falls back to
- * DEFAULT_SIGNAL_SCORE_WEIGHTS on any failure -- the feedback loop is a
+ * DEFAULT_SIGNAL_SCORE_WEIGHTS on any failure - the feedback loop is a
  * refinement, never a dependency of scoring working at all.
  */
 async function resolveWeights(eventId: string): Promise<SignalScoreWeights> {
@@ -179,7 +179,7 @@ async function resolveWeights(eventId: string): Promise<SignalScoreWeights> {
  * Resolves the real OrchestrationContext for an event: quiet hours from
  * preferences, plus repeat-visitor memory when the event has a deviceId to
  * scope a session window to and was classified from its snapshot (see
- * repeatVisitorMemory.ts). Best-effort --
+ * repeatVisitorMemory.ts). Best-effort -
  * any failure here logs and falls back to DEFAULT_ORCHESTRATION_CONTEXT's
  * values for whichever part failed.
  */
@@ -225,7 +225,7 @@ async function resolveDevice(event: PrismEvent, fallbackName?: string): Promise<
 /**
  * Pushes the scored event to connected companion clients over WebSocket,
  * stores it as delivered, and, when the channel decision calls for it,
- * dispatches Web Push. All three are best-effort -- a failure here is logged and swallowed rather than
+ * dispatches Web Push. All three are best-effort - a failure here is logged and swallowed rather than
  * rethrown, since the classification and scoring already succeeded and
  * shouldn't be reported as a pipeline failure just because delivery hiccuped.
  */

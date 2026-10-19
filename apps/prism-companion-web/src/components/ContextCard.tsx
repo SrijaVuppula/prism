@@ -1,5 +1,5 @@
 // Visual context card: renders buildContextCard()'s payload from
-// prism-alert-engine. Semantic HTML and alt text from the start -- an <img>
+// prism-alert-engine. Semantic HTML and alt text from the start - an <img>
 // with a real alt description, a <time> element, and (for the newest card
 // only) an aria-live region so screen readers announce new alerts as they
 // arrive. The live card is kept to what an announcement needs (class,
@@ -27,7 +27,7 @@ import { TagVisitorControl } from "./TagVisitorControl";
 
 export interface ContextCardProps {
   card: ContextCardPayload;
-  /** Full event this card was built from -- carries classification/scoring/visitorGroupId that the card payload itself doesn't. */
+  /** Full event this card was built from - carries classification/scoring/visitorGroupId that the card payload itself doesn't. */
   event: PrismEvent;
   /** True for the newest card, so assistive tech announces it as it arrives. */
   live?: boolean;
@@ -48,7 +48,7 @@ const CATEGORY_NOUNS: Record<string, string> = {
   animal: "Animal",
 };
 
-/** "Oct 6, 2026, 4:02 PM EDT" -- in the household's time zone when one is given. */
+/** "Oct 6, 2026, 4:02 PM EDT" - in the household's time zone when one is given. */
 export function formatTimestamp(iso: string, timeZone?: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;

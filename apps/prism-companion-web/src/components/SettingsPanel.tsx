@@ -4,7 +4,7 @@
 // overrides. Below the form, a switch for alert sounds on this device
 // (saved right away, in this browser only), and "Your data", which explains
 // what Prism stores and deletes the alert history.
-// A plain form bound to usePreferences -- no separate "draft" state library,
+// A plain form bound to usePreferences - no separate "draft" state library,
 // just local component state seeded from the loaded preferences and PUT on
 // submit.
 

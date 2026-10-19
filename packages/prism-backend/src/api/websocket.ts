@@ -4,7 +4,7 @@
 // server.ts) rather than opening its own port, so the companion app can
 // reach both the REST API and the live event stream on one origin.
 // broadcastEvent() fans a scored event + its channel payloads out to every
-// currently-connected client -- there's no per-user targeting yet because
+// currently-connected client - there's no per-user targeting yet because
 // the companion app has no auth of its own (same placeholder state as the
 // Ring account-linking flow in ring/routes.ts).
 
@@ -92,13 +92,13 @@ export function getConnectedClientCount(): number {
  * Pushes a scored event and its channel payloads to every connected
  * companion-app client. Latency is measured from the moment this function is
  * called to the moment the send calls have all been issued to the socket
- * layer -- the same "log the round-trip of the step this module owns"
+ * layer - the same "log the round-trip of the step this module owns"
  * pattern used for the Bedrock call in bedrock/multimodalContext.ts.
  */
 export function broadcastEvent(message: CompanionEventMessage): void {
   if (!wss) {
     throw new WebSocketDeliveryError(
-      "WebSocket server has not been attached yet -- call attachWebSocketServer(server) first.",
+      "WebSocket server has not been attached yet - call attachWebSocketServer(server) first.",
     );
   }
 

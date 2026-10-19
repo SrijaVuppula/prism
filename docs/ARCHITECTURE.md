@@ -32,7 +32,7 @@ apps/prism-companion-web
 
 ## Why this split
 
-- `prism-alert-engine` has zero Ring-specific imports — it takes a normalized event and Bedrock output, and returns channel payloads. That's what makes it a genuine standalone package rather than just a folder inside a Ring-only app.
+- `prism-alert-engine` has zero Ring-specific imports - it takes a normalized event and Bedrock output, and returns channel payloads. That's what makes it a genuine standalone package rather than just a folder inside a Ring-only app.
 - `prism-backend` owns every Ring- and Bedrock-specific call, so there's one place to look to confirm the Ring API is actually called at runtime.
 - `prism-companion-web` is the only piece you need to open in a browser to see and feel the result.
 
@@ -43,9 +43,9 @@ Partner API documentation (developer.amazon.com/docs/ring/api-documentation.html
 the Ring API at `https://api.amazonvision.com` and the OAuth server at
 `https://oauth.ring.com`, both called server-to-server only.
 
-**Webhooks** (`webhookHandler.ts`, `routes.ts`). Ring POSTs v1.1 payloads --
+**Webhooks** (`webhookHandler.ts`, `routes.ts`). Ring POSTs v1.1 payloads -
 `meta` (`version`, `time`, `request_id`, `account_id`) plus a JSON:API
-`data` object -- signed in `X-Signature: sha256=<hex>`, an HMAC-SHA256 of the
+`data` object - signed in `X-Signature: sha256=<hex>`, an HMAC-SHA256 of the
 raw body keyed with the app's HMAC signing key (`RING_WEBHOOK_SECRET`). The
 signature is checked on the raw bytes before parsing. `button_press` becomes
 a doorbell alert; `motion_detected` uses Ring's Smart Alerts `sub_type`
@@ -74,8 +74,8 @@ downloads are cached. Failed downloads aren't cached, so the companion app
 can still load a picture that became ready after the alert went out. If the
 snapshot can't be downloaded or classified, a
 doorbell press (or a person, package or vehicle Ring itself detected) still
-produces an alert from Ring's event type -- "Someone pressed the doorbell.
-No snapshot was available to describe them." -- and repeat-visitor memory
+produces an alert from Ring's event type - "Someone pressed the doorbell.
+No snapshot was available to describe them." - and repeat-visitor memory
 is skipped for it, since that description says nothing about who was
 there. The event simulator sends the same v1.1 webhooks, with its fixture
 photo and "Front Door (simulator)" label in a `simulator` attribute real
@@ -134,16 +134,16 @@ redirects the user to Prism's Account Link URL (`/ring/link`) with `time`
 and `nonce`. Ring requires the user to sign in there; Prism has no user
 accounts, so the household signs in with `RING_LINK_PASSCODE`. Only then
 does Prism check that the redirect is under 10 minutes old and recompute
-the nonce -- HMAC-SHA256 over `"<time>:<account_id>"` with the signing key,
-URL-safe Base64 without padding -- for each unclaimed account. The match is
+the nonce - HMAC-SHA256 over `"<time>:<account_id>"` with the signing key,
+URL-safe Base64 without padding - for each unclaimed account. The match is
 confirmed to Ring with `POST /v1/accounts/me/app-integrations` (nonce) and
 `PATCH` (status `completed`) and marked linked. Access tokens last about
 4 hours and are refreshed when they're about to expire; refresh tokens last
 about 30 days.
 
 **Access tokens** (`accessTokens.ts`). Ring API calls use `RING_ACCESS_TOKEN`
-when it's set -- the Ring Developer Playground issues tokens valid for about
-30 minutes, handy for trying the API without linking -- and otherwise the
+when it's set - the Ring Developer Playground issues tokens valid for about
+30 minutes, handy for trying the API without linking - and otherwise the
 event's linked account's token (or the most recently linked account's, for
 calls not about a specific event).
 
@@ -249,21 +249,21 @@ inherently per-camera regardless of how many people are in the household.
 
 Bedrock embedding model → vector per event (the visitor signature, plus optionally the snapshot itself) → `pgvector` similarity search against the current session window → de-escalate Signal Class on a match. Genuine vector search, not keyword/hash matching.
 
-**Session window**: a rolling time window (`SESSION_WINDOW_MINUTES`, default 45), scoped to a single Ring device. Two events count as the same visit when they occur on the same device within that window of each other, not on a fixed clock-aligned bucket -- the window slides forward with every new event. It resets independently per device: there is no cross-device or global session.
+**Session window**: a rolling time window (`SESSION_WINDOW_MINUTES`, default 45), scoped to a single Ring device. Two events count as the same visit when they occur on the same device within that window of each other, not on a fixed clock-aligned bucket - the window slides forward with every new event. It resets independently per device: there is no cross-device or global session.
 
-**Pipeline**: `bedrock/repeatVisitorMemory.ts` runs after classification and before scoring. Alongside its one-sentence description, the classification prompt asks for a *visitor signature*: a short, lowercase, comma-separated list of the subject's stable visible traits (for a person, clothing items with their colors, headwear, and anything carried). Matching embeds the signature rather than the description, because a description's wording varies between runs on the same snapshot ("red jacket… delivery" one time, "red shirt… clipboard" the next) far more than a list of traits does; a reply without a signature falls back to the description. When `BEDROCK_IMAGE_EMBEDDING_MODEL_ID` is set (e.g. Amazon Titan Multimodal Embeddings, `amazon.titan-embed-image-v1`), the snapshot itself is embedded too, best-effort -- a failed image call just means a text-only match for that event.
+**Pipeline**: `bedrock/repeatVisitorMemory.ts` runs after classification and before scoring. Alongside its one-sentence description, the classification prompt asks for a *visitor signature*: a short, lowercase, comma-separated list of the subject's stable visible traits (for a person, clothing items with their colors, headwear, and anything carried). Matching embeds the signature rather than the description, because a description's wording varies between runs on the same snapshot ("red jacket… delivery" one time, "red shirt… clipboard" the next) far more than a list of traits does; a reply without a signature falls back to the description. When `BEDROCK_IMAGE_EMBEDDING_MODEL_ID` is set (e.g. Amazon Titan Multimodal Embeddings, `amazon.titan-embed-image-v1`), the snapshot itself is embedded too, best-effort - a failed image call just means a text-only match for that event.
 
-`db/vectorStore.ts`'s `findSimilarEvent` compares the event with every prior event on the same device within the window (cosine similarity via pgvector's `<=>` operator) and `pickMatch` applies the rule: a prior event matches when **either** the signature similarity reaches `REPEAT_VISITOR_SIMILARITY_THRESHOLD` (default 0.60 -- see "Measured repeat-visitor matching" below) **or** the image similarity reaches `REPEAT_VISITOR_IMAGE_SIMILARITY_THRESHOLD` (default 0.92); the strongest qualifying match wins, and the log line says which signal matched. The image threshold is high on purpose: every frame from one doorbell camera shares the same background, so the image signal alone should only match a near-identical frame -- someone still standing at the door across several motion events. This event's embeddings are then recorded under whichever visitor group applies -- the matched group, or a freshly minted one -- so the chain keeps extending. `repeatVisitCount` (how many prior events are in that group within the window) always feeds into scoring; it doesn't persist any identity, just a same-session repetition count.
+`db/vectorStore.ts`'s `findSimilarEvent` compares the event with every prior event on the same device within the window (cosine similarity via pgvector's `<=>` operator) and `pickMatch` applies the rule: a prior event matches when **either** the signature similarity reaches `REPEAT_VISITOR_SIMILARITY_THRESHOLD` (default 0.60 - see "Measured repeat-visitor matching" below) **or** the image similarity reaches `REPEAT_VISITOR_IMAGE_SIMILARITY_THRESHOLD` (default 0.92); the strongest qualifying match wins, and the log line says which signal matched. The image threshold is high on purpose: every frame from one doorbell camera shares the same background, so the image signal alone should only match a near-identical frame - someone still standing at the door across several motion events. This event's embeddings are then recorded under whichever visitor group applies - the matched group, or a freshly minted one - so the chain keeps extending. `repeatVisitCount` (how many prior events are in that group within the window) always feeds into scoring; it doesn't persist any identity, just a same-session repetition count.
 
 **Choosing the thresholds**: `npm run eval:repeat --workspace=prism-backend` classifies a sample of the fixture snapshots twice each with live Bedrock and reports, for signatures, descriptions and (when enabled) snapshot images, how similar the same snapshot is to itself across runs versus how similar different snapshots are, with a suggested threshold when the two groups separate cleanly.
 
-**Known-visitor tagging is a separate, opt-in layer on top of this.** `isKnownVisitor` stays false regardless of repeatVisitCount unless the household has turned on known-visitor tagging in Settings *and* that specific visitor group has been tagged (`db/knownVisitorTagStore.ts`) -- see docs/PRIVACY.md. This is why `scoring.ts` has always had `knownVisitor` and `repeatVisit` as two separate breakdown factors: they're independently derived, one automatic and identity-free, the other opt-in and persistent.
+**Known-visitor tagging is a separate, opt-in layer on top of this.** `isKnownVisitor` stays false regardless of repeatVisitCount unless the household has turned on known-visitor tagging in Settings *and* that specific visitor group has been tagged (`db/knownVisitorTagStore.ts`) - see docs/PRIVACY.md. This is why `scoring.ts` has always had `knownVisitor` and `repeatVisit` as two separate breakdown factors: they're independently derived, one automatic and identity-free, the other opt-in and persistent.
 
-**Personalization inputs**: `agentOrchestration.ts` resolves quiet hours and haptic overrides from `preferences/preferencesStore.ts`, and a feedback-derived scoring-weight bias from `feedback/weightAdjustment.ts` (see "Feedback loop" below), on every pipeline run. Quiet hours lower a package, vehicle or animal by 10 points but never a person: they're when the household is likely asleep, which is when a person at the door matters most. Each of these -- preferences, repeat-visitor memory, and scoring weights -- is best-effort: a lookup failure is logged and falls back to the conservative default rather than ever blocking alert delivery on Postgres being reachable.
+**Personalization inputs**: `agentOrchestration.ts` resolves quiet hours and haptic overrides from `preferences/preferencesStore.ts`, and a feedback-derived scoring-weight bias from `feedback/weightAdjustment.ts` (see "Feedback loop" below), on every pipeline run. Quiet hours lower a package, vehicle or animal by 10 points but never a person: they're when the household is likely asleep, which is when a person at the door matters most. Each of these - preferences, repeat-visitor memory, and scoring weights - is best-effort: a lookup failure is logged and falls back to the conservative default rather than ever blocking alert delivery on Postgres being reachable.
 
 ## Feedback loop
 
-Each `ContextCard` in the companion app offers a thumbs up/down on that alert's classification (`POST /alerts/:eventId/feedback`, stored in `alert_feedback`). `feedback/weightAdjustment.ts` aggregates up/down counts per category (minimum 3 votes before a category's weight moves at all) into a bounded bias (±15) on that category's `SignalScoreWeights.categoryBase`, cached for 60s so a burst of events doesn't mean a Postgres round trip per alert. The bias shows up as `breakdown.feedbackAdjustment` in `ScoringResult` whenever non-zero -- exactly as explainable as every hand-written factor, not an opaque model doing the adjusting.
+Each `ContextCard` in the companion app offers a thumbs up/down on that alert's classification (`POST /alerts/:eventId/feedback`, stored in `alert_feedback`). `feedback/weightAdjustment.ts` aggregates up/down counts per category (minimum 3 votes before a category's weight moves at all) into a bounded bias (±15) on that category's `SignalScoreWeights.categoryBase`, cached for 60s so a burst of events doesn't mean a Postgres round trip per alert. The bias shows up as `breakdown.feedbackAdjustment` in `ScoringResult` whenever non-zero - exactly as explainable as every hand-written factor, not an opaque model doing the adjusting.
 
 ## Latency notes
 
@@ -272,7 +272,7 @@ Every stage is timed and logged on its own call:
 - `bedrock/agentOrchestration.ts` logs classification+scoring latency, then a
   second line for total latency (event received -> WebSocket broadcast sent
   and, when applicable, push dispatched).
-- `api/websocket.ts` logs the WebSocket broadcast step itself -- this is the
+- `api/websocket.ts` logs the WebSocket broadcast step itself - this is the
   number the sub-second real-time delivery target is measured against, since
   it isolates the actual push-to-client step from the (much slower, and
   separately logged) Bedrock classification call ahead of it.
@@ -283,7 +283,7 @@ Every stage is timed and logged on its own call:
 
 `scripts/measure-delivery-latency.ts` (`npm run measure-delivery-latency`)
 drives the real `attachWebSocketServer`/`broadcastEvent` code against real
-`ws` client connections on a real HTTP server -- no mocks -- and times each
+`ws` client connections on a real HTTP server - no mocks - and times each
 delivery from the `broadcastEvent()` call to the client's `message` event.
 It deliberately does not call Bedrock: this isolates the delivery step the
 sub-second target is about from classification latency, which is a
@@ -300,20 +300,20 @@ measured deliveries):
 Well under the sub-second target. This was run on localhost in a single
 process, so it measures the delivery code path itself rather than
 real-world network conditions between a deployed backend and a phone on
-cellular/Wi-Fi -- re-run `npm run measure-delivery-latency` against a
+cellular/Wi-Fi - re-run `npm run measure-delivery-latency` against a
 deployed backend for a production-representative number.
 
 `prism-backend/eval/runEvaluation.ts` reports mean/p50/p95/max latency and
-classification accuracy across a labeled event set (see
-`eval/fixtures/README.md` for how to populate it).
+classification accuracy across 34 labeled photos (`eval/dataset.ts`, with
+the photos in `eval/fixtures/`).
 
 ### Measured Bedrock classification accuracy and latency
 
 `npm run eval` (from `packages/prism-backend`) runs the real `runPipeline()`
--- real Bedrock InvokeModel calls, no mocks -- against a 34-event labeled
+- real Bedrock InvokeModel calls, no mocks - against a 34-event labeled
 dataset spanning person/package/vehicle/animal categories. Each event is a
 real photo chosen to stress a specific edge case (low light, motion blur,
-partial framing, multiple subjects, look-alike categories, etc. -- see
+partial framing, multiple subjects, look-alike categories, etc. - see
 `eval/dataset.ts` and `eval/fixtures/README.md`).
 
 Latest run (October 6, 2026, classifying at temperature 0; model
@@ -340,8 +340,8 @@ temperature measured mean 1696 ms, p50 1612 ms, p95 2575 ms, max 2724 ms
 3670 ms, max 3783 ms (before it); the slowest event in the latest run
 (`person-far-from-camera`) spent 4853 ms in the Bedrock call alone, so the
 spread between runs is Bedrock round-trip variance. This latency covers
-classification, scoring and the channel decision -- the eval skips delivery,
-since there's no WebSocket server or push subscriber in an eval run -- not
+classification, scoring and the channel decision - the eval skips delivery,
+since there's no WebSocket server or push subscriber in an eval run - not
 just the isolated Bedrock call; see "Latency notes" above for where the
 Bedrock-only round-trip is logged separately.
 
@@ -379,7 +379,7 @@ descriptions the two nearly touch (0.605 vs 0.598), which is why matching
 uses signatures. The default `REPEAT_VISITOR_SIMILARITY_THRESHOLD` of 0.60
 is the midpoint of runs 1 and 2.
 
-Even so, a simulator repeat visit -- the same photo sent twice -- scored
+Even so, a simulator repeat visit - the same photo sent twice - scored
 0.600 against the first visit and was missed, because at the default
 temperature the model words its description of one image differently on
 each call. Classification now runs at temperature 0, and run 3 shows the

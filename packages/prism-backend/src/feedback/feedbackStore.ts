@@ -1,6 +1,6 @@
 // Postgres-backed storage for thumbs up/down feedback on a dispatched
 // alert's classification (ContextCard in the companion app). One vote per
-// event -- a changed mind overwrites the prior vote rather than
+// event - a changed mind overwrites the prior vote rather than
 // accumulating duplicates.
 
 import type { Pool } from "pg";

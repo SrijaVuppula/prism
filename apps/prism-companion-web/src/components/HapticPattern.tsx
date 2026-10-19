@@ -1,5 +1,5 @@
-// Draws the vibration pattern an alert was delivered with -- pulses as
-// bars, pauses as gaps, widths to scale -- so the haptic channel is visible
+// Draws the vibration pattern an alert was delivered with - pulses as
+// bars, pauses as gaps, widths to scale - so the haptic channel is visible
 // too, including on devices with no Vibration API (iOS Safari).
 
 import type { SignalClass } from "prism-alert-engine";

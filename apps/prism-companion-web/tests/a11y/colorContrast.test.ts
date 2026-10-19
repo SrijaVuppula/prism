@@ -5,8 +5,8 @@
 // This computes contrast directly from the WCAG relative-luminance formula
 // rather than through a browser: the app's palette is a fixed set of CSS
 // custom properties (no runtime color computation), so this is exact,
-// deterministic, and -- unlike axe-core's color-contrast rule under jsdom
-// (see a11y/axeHelper.ts) -- doesn't need real paint/layout to be
+// deterministic, and - unlike axe-core's color-contrast rule under jsdom
+// (see a11y/axeHelper.ts) - doesn't need real paint/layout to be
 // trustworthy. Reading the values out of App.css (rather than hardcoding
 // them here) means a future palette change is checked against AA
 // automatically instead of silently drifting out of sync with this test.
@@ -65,7 +65,7 @@ describe("color contrast (WCAG 2.2 AA)", () => {
   it.each([
     // Body text, muted captions/hints, and Signal Class text against both
     // surfaces they actually appear on (page background and card/panel
-    // surface) -- see App.css for where each variable is used.
+    // surface) - see App.css for where each variable is used.
     ["text on bg (body copy)", "text", "bg", NORMAL_TEXT_MIN],
     ["text on surface (card/panel copy)", "text", "surface", NORMAL_TEXT_MIN],
     ["muted on bg (connection status, empty state)", "muted", "bg", NORMAL_TEXT_MIN],

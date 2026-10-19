@@ -87,7 +87,7 @@ export function isImageEmbeddingEnabled(): boolean {
 /**
  * Embeds snapshot image bytes with the configured multimodal embedding
  * model (Amazon Titan Multimodal Embeddings request shape). Throws if no
- * image embedding model is configured -- check isImageEmbeddingEnabled().
+ * image embedding model is configured - check isImageEmbeddingEnabled().
  */
 export async function embedImage(imageBytes: Buffer): Promise<number[]> {
   const config = getBedrockImageEmbeddingConfig();

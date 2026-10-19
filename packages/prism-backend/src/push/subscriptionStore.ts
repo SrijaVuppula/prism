@@ -1,7 +1,7 @@
 // Postgres-backed storage for Web Push subscriptions. The companion app has
 // no per-user auth yet (same placeholder state as Ring account linking in
 // ring/routes.ts), so every stored subscription is treated as one of this
-// household's companion devices and receives every alert -- mirroring how
+// household's companion devices and receives every alert - mirroring how
 // the WebSocket server broadcasts to every connected client rather than
 // targeting a specific user.
 

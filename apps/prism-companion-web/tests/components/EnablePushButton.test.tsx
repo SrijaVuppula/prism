@@ -1,5 +1,5 @@
 // jsdom has no serviceWorker/PushManager, so isPushSupported() in
-// usePushSubscription.ts is false in every test here -- this exercises the
+// usePushSubscription.ts is false in every test here - this exercises the
 // real "unsupported" fallback path (Safari/iOS today), which is exactly
 // the branch that needs to degrade gracefully without blocking the rest of
 // the app.

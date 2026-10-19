@@ -4,6 +4,7 @@
 // dispatch to it later (prism-backend/src/push/dispatchPush.ts).
 
 import { useCallback, useState } from "react";
+import { resolveApiBase } from "../lib/apiBase";
 import { urlBase64ToUint8Array } from "../lib/applicationServerKey";
 import { describePushError } from "../lib/pushErrors";
 
@@ -17,10 +18,6 @@ export interface UsePushSubscriptionResult {
 
 function isPushSupported(): boolean {
   return typeof window !== "undefined" && "serviceWorker" in navigator && "PushManager" in window;
-}
-
-function resolveApiBase(): string {
-  return import.meta.env.VITE_API_BASE_URL ?? "";
 }
 
 export function usePushSubscription(): UsePushSubscriptionResult {

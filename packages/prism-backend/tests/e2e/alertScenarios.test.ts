@@ -1,6 +1,6 @@
 // End-to-end scenario tests for the full alert pipeline: a real signed HTTP
 // webhook request all the way through normalization, classification,
-// scoring, channel decision, and delivery -- not runPipeline() called
+// scoring, channel decision, and delivery - not runPipeline() called
 // directly (agentOrchestration.test.ts already exercises that in
 // isolation), and not the webhook route with runPipeline stubbed out
 // (routes.test.ts already exercises that). This file is the one place both
@@ -8,9 +8,9 @@
 // field name crossing the toRingAlert -> runPipeline boundary)
 // would actually be caught.
 //
-// Only the true external I/O boundaries are mocked -- Bedrock
+// Only the true external I/O boundaries are mocked - Bedrock
 // classification, Postgres-backed preferences/repeat-visitor-memory/
-// feedback weights, WebSocket broadcast, and Web Push -- exactly the same
+// feedback weights, WebSocket broadcast, and Web Push - exactly the same
 // boundary agentOrchestration.test.ts mocks. Everything in between
 // (parseRingWebhook/toRingAlert, computeSignalScore, decideChannels, buildContextCard/
 // buildPushPayload/encodeHapticPattern) is the real production code.
@@ -316,7 +316,7 @@ describe("full alert pipeline: webhook -> classify -> score -> deliver", () => {
     });
     // The webhook ack happens before runPipeline() runs (see ring/routes.ts),
     // so a downstream classification failure must never turn into a failed
-    // webhook response -- Ring has no way to act on that and would retry a
+    // webhook response - Ring has no way to act on that and would retry a
     // delivery that was already accepted and stored. Plain motion has no
     // stand-in classification, so this one produces no alert.
     expect(failingResponse.status).toBe(200);

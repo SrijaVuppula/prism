@@ -1,6 +1,6 @@
 // Fans a PushPayload out to every stored Web Push subscription. Delivery
-// failures are isolated per-subscription -- one dead subscription must never
-// stop the rest of the household's devices from being notified -- and a
+// failures are isolated per-subscription - one dead subscription must never
+// stop the rest of the household's devices from being notified - and a
 // subscription the push service reports as gone is pruned from storage so
 // future dispatches stop paying for it.
 

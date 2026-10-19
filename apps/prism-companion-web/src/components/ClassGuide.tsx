@@ -1,4 +1,4 @@
-// What each Signal Class means for delivery -- the same channel rules the
+// What each Signal Class means for delivery - the same channel rules the
 // backend's orchestration applies (agentOrchestration.ts), stated plainly.
 
 const CLASS_GUIDE = [

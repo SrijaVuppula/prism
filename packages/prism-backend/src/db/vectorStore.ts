@@ -5,16 +5,16 @@
 // "Session window" here means: a rolling time window, scoped to a single
 // device, within which repeated visually-similar events are treated as the
 // same ongoing visit rather than independent new ones. It resets per
-// device -- there's no global session -- and slides forward with every new
+// device - there's no global session - and slides forward with every new
 // event rather than being a fixed clock-aligned bucket. Its length is
 // SESSION_WINDOW_MINUTES (default 45).
 //
 // Two signals can match a visit to an earlier one, each with its own
 // threshold, and either is enough:
-// - text: the embedded visitor signature (or description) -- cosine
+// - text: the embedded visitor signature (or description) - cosine
 //   similarity >= REPEAT_VISITOR_SIMILARITY_THRESHOLD (default 0.60, chosen
-//   from `npm run eval:repeat` measurements -- see docs/ARCHITECTURE.md);
-// - image (only when image embeddings are on): the embedded snapshot --
+//   from `npm run eval:repeat` measurements - see docs/ARCHITECTURE.md);
+// - image (only when image embeddings are on): the embedded snapshot -
 //   cosine similarity >= REPEAT_VISITOR_IMAGE_SIMILARITY_THRESHOLD (default
 //   0.92). Kept high on purpose: frames from one fixed doorbell camera share
 //   their whole background, so only a near-identical frame (someone still
@@ -121,7 +121,7 @@ function toVectorLiteral(embedding: number[]): string {
 /**
  * Finds the prior event on the same device within the session window that
  * this one repeats, comparing both signals with pgvector cosine distance
- * (`<=>`). Returns null when nothing in-window clears either threshold --
+ * (`<=>`). Returns null when nothing in-window clears either threshold -
  * treated as "not a repeat visitor", not an error.
  */
 export async function findSimilarEvent(
@@ -163,7 +163,7 @@ export async function findSimilarEvent(
 }
 
 /**
- * Stores this event's embedding under a visitor group -- either a newly
+ * Stores this event's embedding under a visitor group - either a newly
  * minted one (no similar prior event) or the group inherited from a match,
  * so the chain of visually-similar events keeps extending. Idempotent on
  * event id, matching the rest of the codebase's webhook-retry tolerance.
@@ -185,7 +185,7 @@ export async function recordEventEmbedding(record: EventEmbeddingRecord, pool: P
 
 /**
  * Number of earlier events in this visitor group, on this device, within the
- * window -- i.e. how many times this visitor has already been seen. The
+ * window - i.e. how many times this visitor has already been seen. The
  * current event is excluded by id, since it's recorded in the group before
  * the count runs (and is already there when a webhook is retried).
  */

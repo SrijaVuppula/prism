@@ -4,7 +4,7 @@
 // Ring's Partner API documentation.
 //
 // Signature verification must happen on the raw request body before it is
-// parsed as JSON -- re-serializing a parsed object is not guaranteed to
+// parsed as JSON - re-serializing a parsed object is not guaranteed to
 // produce the exact bytes Ring signed. See routes.ts for how this is wired
 // into the request pipeline.
 

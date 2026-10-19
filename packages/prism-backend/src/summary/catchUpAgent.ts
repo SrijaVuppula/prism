@@ -7,8 +7,8 @@
 // bedrock/agentOrchestration.ts), here the model decides what to look up:
 // the alerts that arrived since the household last looked, a time window
 // such as "this morning", a Signal Class or category, or counts. What the
-// model would otherwise have to work out from times -- which alerts are new,
-// and which happened during the household's sleep hours -- the tools decide
+// model would otherwise have to work out from times - which alerts are new,
+// and which happened during the household's sleep hours - the tools decide
 // in code and report on each alert. See docs/ARCHITECTURE.md.
 
 import { Agent, BedrockModel, tool, type Model } from "@strands-agents/sdk";

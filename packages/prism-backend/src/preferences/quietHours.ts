@@ -25,7 +25,7 @@ export function isWithinQuietHours(date: Date, quietHours: QuietHours, timeZone:
 
   if (startHour === endHour) {
     // A zero-width window is treated as "always on" rather than "never on"
-    // -- e.g. a user who sets start === end almost certainly means "all day"
+    // - e.g. a user who sets start === end almost certainly means "all day"
     // rather than an instant that never matches any whole hour.
     return true;
   }

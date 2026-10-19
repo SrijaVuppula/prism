@@ -28,7 +28,7 @@ const NOTABLE_THRESHOLD = 35;
  * inlined constants) so the feedback loop in prism-backend
  * (src/feedback/weightAdjustment.ts) can supply an adjusted set derived from
  * accumulated thumbs up/down votes, without this package knowing anything
- * about how that adjustment is computed or where feedback is stored --
+ * about how that adjustment is computed or where feedback is stored -
  * prism-alert-engine stays a pure, dependency-free scoring function either
  * way.
  */
@@ -38,7 +38,7 @@ export interface SignalScoreWeights {
   /**
    * Per-category adjustment layered on top of categoryBase, derived from
    * accumulated user feedback (thumbs up/down). Absent/zero for a category
-   * with no feedback yet -- the loop only nudges categories it has evidence
+   * with no feedback yet - the loop only nudges categories it has evidence
    * for. Shown in `breakdown.feedbackAdjustment` whenever non-zero, so a
    * learned adjustment is exactly as explainable as every other factor.
    */
@@ -74,10 +74,10 @@ export function computeSignalScore(
 ): ScoringResult {
   const breakdown: Record<string, number> = {};
 
-  // 1. Category base weight — what kind of thing was detected.
+  // 1. Category base weight - what kind of thing was detected.
   breakdown.categoryBase = weights.categoryBase[input.category];
 
-  // 1b. Feedback-driven adjustment — learned from accumulated thumbs up/down
+  // 1b. Feedback-driven adjustment - learned from accumulated thumbs up/down
   //     for this category (see prism-backend/src/feedback/weightAdjustment.ts).
   //     Only shown when non-zero so an unadjusted category's breakdown looks
   //     exactly as it did before the feedback loop existed.
@@ -86,25 +86,25 @@ export function computeSignalScore(
     breakdown.feedbackAdjustment = feedbackBias;
   }
 
-  // 2. Confidence scaling — a low-confidence detection is dampened, never dropped silently.
+  // 2. Confidence scaling - a low-confidence detection is dampened, never dropped silently.
   //    Maps confidence 0..1 onto a -10..+10 adjustment centered at 0.5.
   breakdown.confidenceAdjustment = Math.round((input.confidence - 0.5) * 20);
 
-  // 3. Time-of-day risk — late night / early morning activity is inherently more notable.
+  // 3. Time-of-day risk - late night / early morning activity is inherently more notable.
   const isOffHours = input.hourOfDay >= weights.offHoursStart || input.hourOfDay <= weights.offHoursEnd;
   breakdown.timeOfDay = isOffHours ? weights.offHoursBonus : 0;
 
-  // 4. Known-visitor de-escalation — opt-in known-face match lowers urgency.
+  // 4. Known-visitor de-escalation - opt-in known-face match lowers urgency.
   breakdown.knownVisitor = input.isKnownVisitor ? weights.knownVisitorAdjustment : 0;
 
-  // 5. Repeat-visit de-escalation — same visitor again this session window, diminishing
+  // 5. Repeat-visit de-escalation - same visitor again this session window, diminishing
   //    returns so it never fully zeroes out a genuinely new pattern of repeat activity.
   breakdown.repeatVisit =
     input.repeatVisitCount > 0
       ? -Math.min(-weights.repeatVisitCap, input.repeatVisitCount * -weights.repeatVisitPerVisit)
       : 0;
 
-  // 6. Quiet hours — user opted into reduced (not silent) alerting. A person is never
+  // 6. Quiet hours - user opted into reduced (not silent) alerting. A person is never
   //    lowered: quiet hours are when the household is likely asleep, which is when a
   //    person at the door matters most. Without this, quiet hours cancelled most of the
   //    late-night factor and an unknown person at 11 PM scored Notable, not Urgent.

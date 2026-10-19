@@ -1,4 +1,4 @@
-// Push notification payload builder — Web Push / FCM agnostic.
+// Push notification payload builder - Web Push / FCM agnostic.
 // Actual dispatch (service worker registration, FCM/Web Push API calls) lives
 // in prism-backend; this module only shapes the payload.
 

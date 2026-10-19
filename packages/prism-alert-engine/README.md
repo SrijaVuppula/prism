@@ -2,7 +2,7 @@
 
 Context-to-alert engine: takes a normalized camera event + a Bedrock (or any multimodal LLM) classification, computes an explainable **Signal Score** (0–100) and **Signal Class** (Routine/Notable/Urgent), and encodes it into haptic, visual, and push channel payloads.
 
-**No Ring-specific code** — any doorbell, camera, or security vendor can adopt this package directly.
+**No Ring-specific code** - any doorbell, camera, or security vendor can adopt this package directly.
 
 ## Install
 
@@ -74,7 +74,7 @@ const hapticPattern = encodeHapticPattern(event.scoring.signalClass); // → Web
 
 ## Why explainable scoring, not a bare LLM opinion
 
-`scoring.ts` is a weighted, line-by-line-defensible function — modeled after an Enthalpy Comfort Index-style domain scoring pattern — not "the model said so." Every factor in the final score is visible in `breakdown`.
+`scoring.ts` is a weighted, line-by-line-defensible function - modeled after an Enthalpy Comfort Index-style domain scoring pattern - not "the model said so." Every factor in the final score is visible in `breakdown`.
 
 Quiet hours lower packages, vehicles and animals by 10, but never a person: quiet hours are when a household is likely asleep, which is when a person at the door matters most. An unknown person at 11 PM with 95% confidence scores 79 (person 55, confidence 9, late night 15), which is Urgent, with or without quiet hours.
 

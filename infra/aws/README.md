@@ -3,13 +3,13 @@
 Prism's backend calls Amazon Bedrock for three things, all with
 `bedrock:InvokeModel` and nothing else:
 
-- **Snapshot classification** -- Claude Haiku 4.5 through the US
+- **Snapshot classification** - Claude Haiku 4.5 through the US
   cross-Region inference profile `us.anthropic.claude-haiku-4-5-20251001-v1:0`,
   called from `us-east-2` (`BEDROCK_REGION`, `BEDROCK_MODEL_ID`).
-- **Repeat-visitor embeddings** -- Amazon Titan Text Embeddings V2,
+- **Repeat-visitor embeddings** - Amazon Titan Text Embeddings V2,
   `amazon.titan-embed-text-v2:0`, in the same region
   (`BEDROCK_EMBEDDING_MODEL_ID`).
-- **The Catch up agent** -- the same Claude Haiku 4.5 inference profile,
+- **The Catch up agent** - the same Claude Haiku 4.5 inference profile,
   through the Converse API without streaming, which needs no permission
   beyond `bedrock:InvokeModel`.
 
@@ -75,9 +75,9 @@ IAM role or user the backend runs as. For a deployed backend, prefer a role
 
 ## Credentials
 
-The backend uses the AWS SDK's default credential chain -- environment
+The backend uses the AWS SDK's default credential chain - environment
 variables, the shared `~/.aws` config and credentials files, or an attached
-role -- and never reads AWS keys from `packages/prism-backend/.env`. For
+role - and never reads AWS keys from `packages/prism-backend/.env`. For
 local development, configure a named profile with the AWS CLI
 (`aws configure --profile prism`, or `aws configure sso --profile prism`)
 and select it with `AWS_PROFILE=prism`, which can go in `.env` since it's

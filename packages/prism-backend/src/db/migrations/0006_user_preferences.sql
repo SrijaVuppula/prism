@@ -2,7 +2,7 @@
 -- haptic pattern overrides, quiet hours, and the known-visitor-tagging
 -- opt-in. household_id is a real column (not folded away as a singleton)
 -- so a future move to per-user auth is a call-site change, not a schema
--- migration -- see preferencesStore.ts's module comment for why.
+-- migration - see preferencesStore.ts's module comment for why.
 CREATE TABLE IF NOT EXISTS user_preferences (
   household_id TEXT PRIMARY KEY,
   haptic_overrides JSONB NOT NULL DEFAULT '{}'::jsonb,

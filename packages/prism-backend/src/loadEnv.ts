@@ -7,7 +7,7 @@
 import path from "node:path";
 import { config } from "dotenv";
 
-/** packages/prism-backend/.env -- resolves the same from src/ and dist/. */
+/** packages/prism-backend/.env - resolves the same from src/ and dist/. */
 export const ENV_FILE_PATH = path.resolve(__dirname, "..", ".env");
 
 export function loadEnv(envFilePath: string = ENV_FILE_PATH): void {
