@@ -20,6 +20,7 @@ self.addEventListener("push", (event) => {
   const title = payload.title || "Prism";
   const options = {
     body: payload.body,
+    icon: "/icons/icon-192.png",
     data: payload.data || {},
     tag: payload.data && payload.data.eventId,
   };
