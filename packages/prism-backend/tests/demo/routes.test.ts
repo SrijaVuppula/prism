@@ -9,7 +9,7 @@ vi.mock("../../src/preferences/preferencesStore", async (importOriginal) => {
 });
 
 import { demoRouter, resetTestVisitors } from "../../src/demo/routes";
-import { SAMPLE_EVENTS } from "../../src/demo/testVisitors";
+import { SAMPLE_EVENTS, TEST_VISITORS } from "../../src/demo/testVisitors";
 import { DEFAULT_PREFERENCES, getPreferencesStore } from "../../src/preferences/preferencesStore";
 import { startAlert } from "../../src/ring/routes";
 
@@ -52,14 +52,16 @@ const press = () => fetch(`${baseUrl}/test-visitor`, { method: "POST" });
 describe("POST /test-visitor", () => {
   it("sends each simulated event in turn through the webhook path", async () => {
     const labels: string[] = [];
-    for (let i = 0; i < SAMPLE_EVENTS.length + 1; i += 1) {
+    for (let i = 0; i < TEST_VISITORS.length + 1; i += 1) {
       const response = await press();
       expect(response.status).toBe(202);
       labels.push(((await response.json()) as { label: string }).label);
       vi.setSystemTime(Date.now() + 5_000);
     }
 
-    expect(labels).toEqual([...SAMPLE_EVENTS.map((sample) => sample.label), SAMPLE_EVENTS[0].label]);
+    expect(labels).toEqual([...TEST_VISITORS.map((sample) => sample.label), TEST_VISITORS[0].label]);
+    // The story comes first: a repeat visit, then the Urgent night-time visitor.
+    expect(labels.slice(0, SAMPLE_EVENTS.length)).toEqual(SAMPLE_EVENTS.map((sample) => sample.label));
     const [alert, raw] = vi.mocked(startAlert).mock.calls[0];
     expect(alert).toMatchObject({ kind: "ding", deviceName: "Front Door (simulator)" });
     expect(raw).toMatchObject({ meta: { version: "1.1" }, data: { type: "button_press" } });

@@ -11,7 +11,7 @@ import { DEFAULT_PREFERENCES, getPreferencesStore } from "../preferences/prefere
 import { startAlert } from "../ring/routes";
 import { parseRingWebhook, toRingAlert } from "../ring/webhookHandler";
 import { DailyLimit, dailyLimitFromEnv } from "./dailyLimit";
-import { buildSimulatedWebhook, lateNight, SAMPLE_EVENTS } from "./testVisitors";
+import { buildSimulatedWebhook, lateNight, TEST_VISITORS } from "./testVisitors";
 
 export const demoRouter = Router();
 
@@ -54,7 +54,7 @@ demoRouter.post("/test-visitor", async (_req, res, next) => {
   }
   lastSentAt = now;
 
-  const sample = SAMPLE_EVENTS[nextSample % SAMPLE_EVENTS.length];
+  const sample = TEST_VISITORS[nextSample % TEST_VISITORS.length];
   nextSample += 1;
   try {
     const occurredAt = sample.atNight ? lateNight(new Date(now), await householdTimeZone()) : new Date(now);

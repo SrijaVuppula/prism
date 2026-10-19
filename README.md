@@ -4,7 +4,7 @@ Doorbell alerts you can see and feel. Context-aware, multi-channel accessible al
 
 **Try it live: [d2w68k35faj3ab.cloudfront.net](https://d2w68k35faj3ab.cloudfront.net)**. No sign-up; it works on a phone or a laptop.
 
-1. Press **Send a test visitor**. Within a few seconds the alert arrives with its Signal Class, its score and the reasons behind it. Each press sends the next of five visitors: a doorbell press, a cat, a package, the same visitor again, then a night-time visit. On Android Chrome, Notable and Urgent alerts also vibrate.
+1. Press **Send a test visitor**. Within a few seconds the alert arrives with its Signal Class, its score and the reasons behind it. The first five presses tell a short story: a doorbell press, a cat, a package, the same visitor again, then an Urgent night-time visit. After that come 13 more: people, packages, vehicles and animals, by day and at night. On Android Chrome, Notable and Urgent alerts also vibrate.
 2. Under **Catch up**, press **What did I miss?**, or ask something like "Did anyone come while I was asleep?".
 
 The demo runs on AWS with simulated Ring events, and everyone trying it shares one household. To run Prism yourself, see [Setup](#setup) or [`infra/aws/demo`](infra/aws/demo/README.md).
@@ -83,7 +83,7 @@ npm run dev          # backend on :3000, companion app on http://localhost:5173
 npm run seed         # in a second terminal: replay five simulated doorbell events
 ```
 
-Open http://localhost:5173 before running `npm run seed`, or skip the second terminal and press **Send a test visitor** in the app, which sends the same events one at a time. Set your household time zone under **Settings** (it starts as UTC): quiet hours, the late-night factor in the Signal Score, and alert times all use it. Each event arrives as a context card with its Signal Class. Notable and Urgent events also vibrate on Android Chrome, and once push is enabled in the app, Urgent events send a Web Push notification.
+Open http://localhost:5173 before running `npm run seed`, or skip the second terminal and press **Send a test visitor** in the app, which sends the same five events one at a time and then 13 more from the other labeled photos. Set your household time zone under **Settings** (it starts as UTC): quiet hours, the late-night factor in the Signal Score, and alert times all use it. Each event arrives as a context card with its Signal Class. Notable and Urgent events also vibrate on Android Chrome, and once push is enabled in the app, Urgent events send a Web Push notification.
 
 ### Simulator mode (no Ring credentials)
 
