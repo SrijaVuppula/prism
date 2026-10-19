@@ -43,6 +43,12 @@ describe("SettingsPanel", () => {
     expect(getByText(/opt-in only/i)).toBeInTheDocument();
   });
 
+  it("says next to the quiet hours toggle that a person at the door still alerts at full urgency", async () => {
+    const { findByRole } = render(<SettingsPanel onClose={() => {}} />);
+    const quietHours = await findByRole("group", { name: /quiet hours/i });
+    expect(quietHours).toHaveTextContent("A person at the door always alerts at full urgency.");
+  });
+
   it("lets a keyboard user reach and activate Close without a mouse", async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();

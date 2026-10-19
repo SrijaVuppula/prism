@@ -117,7 +117,8 @@ the Session Manager plugin for the AWS CLI.
 - Everyone who opens the address shares one household: the same alerts,
   settings and catch-up. The app shows a note saying so.
 - The household's preferences start with quiet hours from 10 PM to 7 AM
-  and known-visitor tagging off.
+  and known-visitor tagging off. Quiet hours lower packages, vehicles and
+  animals, never a person, so the night-time test visitor is still Urgent.
 - `POST /webhooks/ring` rejects any request that isn't signed with the
   instance's own secret.
 - Ring account linking stays off, since `RING_LINK_PASSCODE` isn't set.

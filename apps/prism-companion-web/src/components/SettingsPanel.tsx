@@ -108,6 +108,9 @@ export function SettingsPanel({ onClose, onHistoryDeleted }: { onClose: () => vo
             />
             Reduce alert urgency during quiet hours
           </label>
+          <p className="settings-panel__hint">
+            A person at the door always alerts at full urgency.
+          </p>
           <div className="settings-panel__row">
             <label>
               Start hour

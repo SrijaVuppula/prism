@@ -104,8 +104,11 @@ export function computeSignalScore(
       ? -Math.min(-weights.repeatVisitCap, input.repeatVisitCount * -weights.repeatVisitPerVisit)
       : 0;
 
-  // 6. Quiet hours — user opted into reduced (not silent) alerting.
-  breakdown.quietHours = input.isQuietHours ? weights.quietHoursAdjustment : 0;
+  // 6. Quiet hours — user opted into reduced (not silent) alerting. A person is never
+  //    lowered: quiet hours are when the household is likely asleep, which is when a
+  //    person at the door matters most. Without this, quiet hours cancelled most of the
+  //    late-night factor and an unknown person at 11 PM scored Notable, not Urgent.
+  breakdown.quietHours = input.isQuietHours && input.category !== "person" ? weights.quietHoursAdjustment : 0;
 
   const raw = Object.values(breakdown).reduce((sum, v) => sum + v, 0);
   const signalScore = Math.max(0, Math.min(100, Math.round(raw)));

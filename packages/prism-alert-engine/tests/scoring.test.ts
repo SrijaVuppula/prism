@@ -14,6 +14,30 @@ describe("computeSignalScore", () => {
     expect(result.signalClass).toBe("Urgent");
   });
 
+  it("never lowers a person during quiet hours, so a late-night visitor stays Urgent", () => {
+    const result = computeSignalScore({
+      category: "person",
+      confidence: 0.95,
+      hourOfDay: 23,
+      isKnownVisitor: false,
+      repeatVisitCount: 0,
+      isQuietHours: true,
+    });
+    expect(result.breakdown.quietHours).toBe(0);
+    expect(result.signalScore).toBe(79); // person 55 + confidence 9 + late night 15
+    expect(result.signalClass).toBe("Urgent");
+  });
+
+  it("still lowers packages, vehicles and animals during quiet hours", () => {
+    for (const category of ["package", "vehicle", "animal"] as const) {
+      const input = { category, confidence: 0.9, hourOfDay: 23, isKnownVisitor: false, repeatVisitCount: 0 };
+      const quiet = computeSignalScore({ ...input, isQuietHours: true });
+      const normal = computeSignalScore({ ...input, isQuietHours: false });
+      expect(quiet.breakdown.quietHours).toBe(-10);
+      expect(quiet.signalScore).toBe(normal.signalScore - 10);
+    }
+  });
+
   it("de-escalates a known repeat visitor toward Routine", () => {
     const result = computeSignalScore({
       category: "person",
