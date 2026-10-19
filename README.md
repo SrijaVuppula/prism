@@ -111,6 +111,7 @@ From then on, doorbell presses and motion events arrive as signed webhooks, and 
 ### Other commands
 
 - `npm test` — all workspaces' test suites
+- `npm run lint` — ESLint (with typescript-eslint) across all workspaces
 - `npm run build` — compile every workspace
 - `npm run migrate` — apply any new database migrations
 - `npm run clear-history` — delete stored alerts, repeat-visitor memory, feedback and visitor tags (keeps settings, push subscriptions and any linked Ring account)
