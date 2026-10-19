@@ -58,6 +58,7 @@ All Ring calls live in [`packages/prism-backend/src/ring`](packages/prism-backen
 ### Measured
 
 - **Classification:** 33 of 34 labeled photos (97%) classified correctly, including low light, motion blur and look-alike categories. Median 1.6 seconds per event, including scoring.
+- **Catch up:** 30 of 30 answers (10 questions, each asked 3 times) had the facts and the format right, on a fixed household day with known answers. The first version of the agent got 26 of 30, and the changes between runs were tuned on these same questions. Median 2.7 seconds per answer.
 - **Repeat-visitor matching:** the match threshold (0.60) sits above every similarity measured between different visitors (at most 0.569).
 - **Delivery:** the WebSocket broadcast step takes 0.1 ms at the 95th percentile, measured locally over 5,000 deliveries.
 - **Accessibility:** zero axe-core violations across every component and page state, and a manual VoiceOver pass of the full alert flow.
@@ -133,7 +134,7 @@ Alert history is kept for 30 days by default (`HISTORY_RETENTION_DAYS`) and can 
 
 The Ring integration follows Ring's Partner API documentation: one-way account linking (token exchange, the signed-nonce Account Link page, token refresh), v1.1 webhook ingestion (X-Signature verification, deduplication), snapshot downloads with privacy zones blacked out, device lookups, and reading the event history for missed events, all through the Ring API. It is covered by tests and exercised end to end with the event simulator, but has not yet been run against a live Ring account. The Signal Score engine is built and tested. Bedrock classification is wired end to end from the webhook receiver through the Signal Score engine to a channel decision. Real-time delivery is live: a WebSocket server broadcasts scored events to the companion web app, and Web Push notifications reach subscribed devices even when the app isn't in focus. Measured WebSocket delivery latency (`npm run measure-delivery-latency`) is sub-millisecond locally -- see `docs/ARCHITECTURE.md` for the methodology and numbers. The companion app itself renders the visual context card and triggers the haptic pattern for each alert.
 
-The catch-up summary is tested with a scripted model standing in for Bedrock, and was checked by hand against the live model. Personalization and session memory are also built and tested: repeat-visitor memory (Bedrock embeddings + pgvector similarity search, scoped to a rolling per-device session window), per-household preferences (quiet hours, haptic overrides, the known-visitor-tagging opt-in), and a feedback loop that adjusts Signal Score category weights from accumulated thumbs up/down votes.
+The catch-up summary is tested with a scripted model standing in for Bedrock, and its answers from the live model are measured with `npm run eval:catch-up` (see `docs/ARCHITECTURE.md`). Personalization and session memory are also built and tested: repeat-visitor memory (Bedrock embeddings + pgvector similarity search, scoped to a rolling per-device session window), per-household preferences (quiet hours, haptic overrides, the known-visitor-tagging opt-in), and a feedback loop that adjusts Signal Score category weights from accumulated thumbs up/down votes.
 
 ## Accessibility
 

@@ -36,13 +36,14 @@ describe("the catch-up eval's household", () => {
     const result = (await tools.list_new_alerts.invoke({})) as {
       headline: string;
       alerts: Array<{ time: string; duringSleepHours: boolean }>;
+      routineAlerts: Array<{ time: string; duringSleepHours: boolean }>;
     };
 
     expect(result.headline).toBe(NEW_ALERTS_HEADLINE);
-    expect(result.alerts.filter((alert) => alert.duringSleepHours).map((alert) => alert.time)).toEqual([
-      "Tue, Oct 20, 3:10 AM",
-      "Mon, Oct 19, 11:36 PM",
-    ]);
+    const asleep = (alerts: Array<{ time: string; duringSleepHours: boolean }>) =>
+      alerts.filter((alert) => alert.duringSleepHours).map((alert) => alert.time);
+    expect(asleep(result.alerts)).toEqual(["yesterday 11:36 PM"]);
+    expect(asleep(result.routineAlerts)).toEqual(["today 3:10 AM"]);
   });
 });
 
@@ -59,6 +60,14 @@ describe("checkAnswer", () => {
       "missing: the envelope",
       "missing: at 8:20 AM",
     ]);
+  });
+
+  it("rules out other alerts in the answer to a specific question", () => {
+    const onTopic = "Yes. A person in a red jacket came back. They rang the doorbell at 6:40 PM yesterday, then returned at 6:52 PM.";
+    expect(checkAnswer(onTopic, caseById("same-person")).failures).toEqual([]);
+    expect(
+      checkAnswer(`${onTopic} An Urgent alert also came in: a person in a dark hoodie at 11:36 PM.`, caseById("same-person")).failures,
+    ).toEqual(["included: an alert that isn't about the returning visitor"]);
   });
 
   it("checks the format separately from the facts: under 80 words, no markdown, no emoji", () => {

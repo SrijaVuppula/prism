@@ -178,7 +178,9 @@ export const CATCH_UP_CASES: CatchUpCase[] = [
       { label: "says they came back", pattern: /\byes\b|again|came back|returned/i },
       { label: "the repeat visit at 6:52 PM", pattern: at("6:52 PM") },
     ],
-    mustNotInclude: [],
+    // A specific question gets only the alerts that answer it. Added after an
+    // answer went on to the Urgent visit, the van and the envelope.
+    mustNotInclude: [{ label: "an alert that isn't about the returning visitor", pattern: /11:36|hoodie|\bvan\b|envelope/i }],
   },
   {
     id: "worry",

@@ -2,12 +2,15 @@ import { Model, type Message } from "@strands-agents/sdk";
 import { describe, expect, it, vi } from "vitest";
 import type { CompanionEventMessage } from "../../src/api/websocket";
 import {
+  alertTime,
   answerCatchUp,
   buildCatchUpTools,
   catchUpPrompt,
   lastLookedAt,
+  MAX_ANSWER_WORDS,
   newAlertsHeadline,
   SYSTEM_PROMPT,
+  wordCount,
   type CatchUpDeps,
 } from "../../src/summary/catchUpAgent";
 import { DEFAULT_PREFERENCES } from "../../src/preferences/preferencesStore";
@@ -90,6 +93,16 @@ describe("catch-up tools", () => {
     expect(result).toMatchObject({ headline: "You have 3 new alerts: 1 Urgent, 1 Notable and 1 Routine." });
   });
 
+  it("list_new_alerts keeps Routine alerts apart from the ones to describe, since the headline already counts them", async () => {
+    const result = (await toolsByName(deps()).list_new_alerts.invoke({})) as {
+      alerts: Array<{ signalClass: string; description: string }>;
+      routineAlerts: Array<{ signalClass: string; description: string }>;
+    };
+
+    expect(result.alerts.map(({ signalClass }) => signalClass)).toEqual(["Notable", "Urgent"]);
+    expect(result.routineAlerts.map(({ description }) => description)).toEqual(["A cat walked across the porch."]);
+  });
+
   it("marks each alert with whether it happened during sleep hours, so the model doesn't work it out", async () => {
     const quietHoursOff = deps({
       getPreferences: vi.fn().mockResolvedValue({ ...DEFAULT_PREFERENCES, timeZone: "America/Los_Angeles" }),
@@ -98,9 +111,9 @@ describe("catch-up tools", () => {
       alerts: Array<{ time: string; duringSleepHours: boolean }>;
     };
     expect(result.alerts.map(({ time, duringSleepHours }) => [time, duringSleepHours])).toEqual([
-      ["Wed, Oct 14, 1:05 PM", false],
-      ["Wed, Oct 14, 2:40 AM", true],
-      ["Wed, Oct 14, 1:10 AM", true],
+      ["today 1:05 PM", false],
+      ["today 2:40 AM", true],
+      ["today 1:10 AM", true],
     ]);
   });
 
@@ -121,7 +134,7 @@ describe("catch-up tools", () => {
     });
     expect(result.count).toBe(3);
     expect(result.alerts[1]).toEqual({
-      time: "Wed, Oct 14, 2:40 AM",
+      time: "today 2:40 AM",
       duringSleepHours: true,
       device: "Front Door",
       category: "person",
@@ -131,6 +144,22 @@ describe("catch-up tools", () => {
       repeatVisit: true,
       knownVisitor: false,
     });
+  });
+
+  it("list_alerts can keep only the alerts during, or outside, sleep hours, so an overnight answer can't pick up the evening", async () => {
+    const d = deps();
+    const tools = toolsByName(d);
+
+    const asleep = (await tools.list_alerts.invoke({ duringSleepHours: true, limit: 1 })) as {
+      count: number;
+      alerts: Array<{ time: string }>;
+    };
+    // The store is asked for enough alerts to filter before the limit is applied.
+    expect(d.listAlerts).toHaveBeenCalledWith(expect.objectContaining({ limit: 500 }));
+    expect(asleep).toMatchObject({ count: 1, alerts: [{ time: "today 2:40 AM" }] });
+
+    const awake = (await tools.list_alerts.invoke({ duringSleepHours: false })) as { alerts: Array<{ time: string }> };
+    expect(awake.alerts.map(({ time }) => time)).toEqual(["today 1:05 PM"]);
   });
 
   it("list_alerts rejects a time it can't read, so the model can correct itself", async () => {
@@ -161,6 +190,22 @@ describe("newAlertsHeadline", () => {
 
   it("says plainly when nothing new arrived", () => {
     expect(newAlertsHeadline([], "Tue, Oct 13, 10:00 PM")).toBe("No new alerts since you last looked (Tue, Oct 13, 10:00 PM).");
+  });
+});
+
+describe("alertTime", () => {
+  const LA = "America/Los_Angeles";
+
+  it("says today or yesterday with the time, and gives the full date for anything older", () => {
+    expect(alertTime(new Date("2026-10-14T14:20:00Z"), NOW, LA)).toBe("today 7:20 AM");
+    expect(alertTime(new Date("2026-10-14T06:36:00Z"), NOW, LA)).toBe("yesterday 11:36 PM");
+    expect(alertTime(new Date("2026-10-13T06:36:00Z"), NOW, LA)).toBe("Mon, Oct 12, 11:36 PM");
+  });
+
+  it("counts yesterday in calendar days, so a 23-hour day at the switch to daylight time still counts", () => {
+    const justAfterMidnight = new Date("2026-03-09T07:30:00Z"); // Mon, Mar 9, 12:30 AM PDT
+    // Sun, Mar 8, 12:30 AM PST: 23 hours earlier, yet the day before.
+    expect(alertTime(new Date("2026-03-08T08:30:00Z"), justAfterMidnight, LA)).toBe("yesterday 12:30 AM");
   });
 });
 
@@ -239,6 +284,37 @@ describe("answerCatchUp", () => {
     expect(first).toContain("Did anyone come while I was asleep?");
     expect(second).toContain("10 PM");
     expect(third).toContain("A person in a dark hoodie at the door.");
+    // Short enough, so no rewrite was asked for.
+    expect(model.received).toHaveLength(3);
+  });
+
+  const words = (n: number) => Array.from({ length: n }, (_, i) => `word${i}`).join(" ");
+
+  it("asks once for a shorter answer when the first is too long, in the same conversation", async () => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const long = words(MAX_ANSWER_WORDS + 5);
+    const short = "You have 1 new alert: 1 Urgent. A person in a dark hoodie at 2:40 AM.";
+    const model = new ScriptedModel([{ text: long }, { text: short }]);
+
+    expect(await answerCatchUp({}, deps(), model)).toBe(short);
+
+    const rewriteRequest = JSON.stringify(model.received[1]);
+    expect(rewriteRequest).toContain(long);
+    expect(rewriteRequest).toContain(`That answer is ${MAX_ANSWER_WORDS + 5} words`);
+    expect(rewriteRequest).toContain("Keep the opening sentence word for word");
+  });
+
+  it("keeps the first answer if the rewrite is no shorter", async () => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const first = words(MAX_ANSWER_WORDS + 2);
+    const model = new ScriptedModel([{ text: first }, { text: words(MAX_ANSWER_WORDS + 9) }]);
+
+    expect(await answerCatchUp({}, deps(), model)).toBe(first);
+    expect(model.received).toHaveLength(2);
+  });
+
+  it("counts words the way the limit means them", () => {
+    expect(wordCount("  You have 7 new alerts:\n1 Urgent. ")).toBe(7);
   });
 
   it("gives the model the instructions for a short, plain-text, braille-friendly answer", () => {
@@ -249,5 +325,18 @@ describe("answerCatchUp", () => {
     expect(SYSTEM_PROMPT).toMatch(/duringSleepHours/);
     expect(SYSTEM_PROMPT).toMatch(/headline, word for word/);
     expect(SYSTEM_PROMPT).toMatch(/Never count alerts yourself/);
+  });
+
+  it("tells the model to leave out Routine alerts the headline counts, and alerts outside the question", () => {
+    expect(SYSTEM_PROMPT).toMatch(/Leave out its routineAlerts/);
+    expect(SYSTEM_PROMPT).toMatch(/duringSleepHours set to true/);
+    expect(SYSTEM_PROMPT).toMatch(/don't mention alerts from outside the time or the kind of subject asked about/);
+  });
+
+  it("tells the model to answer a specific question with only the alerts that answer it", () => {
+    expect(SYSTEM_PROMPT).toMatch(/describe only the alerts that answer it and stop/);
+    expect(SYSTEM_PROMPT).toMatch(/mention Routine alerts only when there's nothing else/);
+    // The old rule, which had every answer list Urgent and Notable alerts and sum up Routine ones, is gone.
+    expect(SYSTEM_PROMPT).not.toMatch(/Sum up Routine alerts in one sentence/);
   });
 });

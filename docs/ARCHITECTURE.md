@@ -185,9 +185,12 @@ tools:
   hours (its quiet hours, or 10 PM to 7 AM when they're off).
 - `list_new_alerts`: the alerts delivered since the household last looked,
   whenever they happened. "What did I miss?" means what arrived since then,
-  which includes an event found later in Ring's event history.
+  which includes an event found later in Ring's event history. Routine
+  alerts come back apart from the Urgent and Notable ones, so the answer
+  describes what matters and leaves the rest to the opening count.
 - `list_alerts`: alerts that happened in a time window, optionally filtered
-  by Signal Class or category.
+  by Signal Class, category, or whether they happened during the sleep
+  hours.
 - `count_alerts`: totals for a window, by Signal Class, category and camera.
 
 Every alert the tools return carries its local time, camera, description,
@@ -206,16 +209,24 @@ The tools read `delivered_alerts`, which stores each alert exactly as the
 companion app received it (`db/alertHistoryStore.ts`). The same table backs
 `GET /alerts`, so the app shows recent alerts again after a reload; only
 alerts that arrive live vibrate. The system prompt asks for plain sentences
-under 80 words, the direct answer first, Urgent and Notable alerts before
-Routine ones, no markdown or symbols (they read badly on a braille
-display), and nothing the tools didn't return. The model runs at
-temperature 0 through the Converse API without streaming, so it needs only
-the `bedrock:InvokeModel` permission classification already has.
+under 80 words, the direct answer first, no markdown or symbols (they read
+badly on a braille display), and nothing the tools didn't return. A
+specific question ("Did the same person come back?") gets only the alerts
+that answer it; a general one ("What did I miss?") gets Urgent alerts, then
+Notable ones, with Routine alerts mentioned only when there's nothing
+else. Alert times come back as short as they can be said ("today 8:20 AM",
+"yesterday 11:36 PM"), and the word limit is checked in code: an answer
+that's too long gets one rewrite in the same conversation, and the shorter
+of the two is returned. The model runs at temperature 0 through the
+Converse API without streaming, so it needs only the
+`bedrock:InvokeModel` permission classification already has.
 
 The tests drive the real Strands agent loop with a scripted model in place
 of Bedrock (`tests/summary/catchUpAgent.test.ts`): it calls the tools in
 turn, and the test checks that each tool's result reached the model before
-its next turn and that the final text comes back as the answer.
+its next turn and that the final text comes back as the answer. How well
+the live model answers is measured separately (see "Measured catch-up
+accuracy" below).
 
 ## Personalization without an account system
 
@@ -386,3 +397,64 @@ a false match would come from; a false match lowers the score by 8 per
 repeat visit (at most 20), which rarely changes the Signal Class. This
 sample has 10 snapshots and no pairs of the same person in different
 frames, so re-run the tool as the dataset grows.
+
+### Measured catch-up accuracy
+
+`npm run eval:catch-up` (from `packages/prism-backend`) runs the real
+catch-up agent, with live Bedrock calls (Claude Haiku 4.5, temperature 0),
+against a fixed household day with known answers (`eval/measureCatchUp.ts`).
+The household is in Los Angeles with quiet hours from 10 PM to 7 AM, last
+looked at its alerts at 6 PM on Monday, and asks at 9 AM on Tuesday. Nine
+alerts cover the two days, including a repeat visit, an Urgent visit at
+night, an animal overnight, and an event that happened before 6 PM but was
+only delivered after it. Ten questions ("What did I miss?", "Did anyone
+come while I was asleep?", "Did a vehicle come overnight?", and so on) each
+list facts the answer must contain and facts it must not, such as an event
+outside the window asked about. Every answer is also checked against the
+format the agent is told to use: under 80 words, plain sentences, no
+markdown or emoji. Each question is asked 3 times, so each run gives 30
+answers.
+
+Four runs on October 18, 2026, changing the agent between them:
+
+| run | agent | facts right | format right | both right | p50 / p95 / max |
+| --- | --- | --- | --- | --- | --- |
+| 1 | as first written | 29/30 | 27/30 | 26/30 (87%) | 2793 / 3986 / 3990 ms |
+| 2 | Routine alerts kept apart; sleep-hours filter; no-match rule | 30/30 | 24/30 | 24/30 (80%) | 2773 / 3578 / 5504 ms |
+| 3 | short time labels; length check | 30/30 (27/30 with run 4's check) | 30/30 | 30/30 (27/30 with run 4's check) | 2741 / 3098 / 3734 ms |
+| 4 | answers stay on the question asked | 30/30 | 30/30 | **30/30 (100%)** | 2686 / 3375 / 3726 ms |
+
+What each run found:
+
+- **Run 1.** "What did I miss?" described all seven new alerts, Routine
+  ones included, in 91-92 words. Asked "Did a vehicle come overnight?",
+  one answer said no, then added the car from 5:30 PM the evening before.
+- **Run 2.** `list_new_alerts` now returns Routine alerts apart from the
+  Urgent and Notable ones, and `list_alerts` can keep only the alerts
+  during (or outside) the sleep hours. That fixed the overnight answer, but
+  the model still added the Routine alerts, and it repeated each alert's
+  full date ("at 8:20 AM on Tue, Oct 20"), so "What did I miss?" grew to
+  101 words and "Is there anything I should worry about?" went to 89.
+- **Run 3.** Alert times became "today 8:20 AM" and "yesterday 11:36 PM",
+  and an answer of 80 words or more gets one rewrite. Every answer was
+  under the limit on the first try, so the rewrite never ran. But "Did the
+  same person come back?" answered, then went on to the Urgent visit, the
+  van and the envelope. The eval didn't rule that out, so it passed.
+- **Run 4.** The prompt now separates specific questions, which get only
+  the alerts that answer them, from general ones. The eval's same-person
+  question gained a check that rules out the other alerts; scored with it,
+  run 3 would have been 27/30. In run 4 the rewrite ran for "What did I
+  miss?" each time: the model's first answer was 102 words and the rewrite
+  78, which took that question from 2.3-2.7 seconds in run 3 to 3.4-3.7.
+
+Read these numbers with three caveats:
+
+- At temperature 0 the model gives the same answer to the same question,
+  and within each run the 3 answers to a question were identical, word for
+  word, except for two questions in run 1. Each run is close to 10
+  distinct answers, repeated.
+- The agent was tuned against these same 10 questions, and one check was
+  added after run 3. Run 4 shows the fixes work for this household's day,
+  not how accurate the agent is on questions it hasn't seen.
+- "What did I miss?" passes only because of the rewrite. With five Urgent
+  and Notable alerts, there is little room under 80 words.

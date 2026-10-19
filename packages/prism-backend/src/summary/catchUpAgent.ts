@@ -51,19 +51,21 @@ const CATEGORIES = ["person", "package", "vehicle", "animal"] as const satisfies
 const DEFAULT_LOOKBACK_MS = 24 * 60 * 60_000;
 const MAX_LISTED_ALERTS = 50;
 const MAX_COUNTED_ALERTS = 500;
+/** Answers must be shorter than this, to read at a glance or on a braille display. */
+export const MAX_ANSWER_WORDS = 80;
 
 export const SYSTEM_PROMPT = `You are Prism's catch-up assistant. Prism turns Ring doorbell events into alerts for deaf, hard-of-hearing and DeafBlind people. Answer the household's question about their doorbell alerts using only what the tools return. Never guess or invent an event.
 
 Choosing alerts:
-- "What did I miss?" or "since I last checked": use list_new_alerts, which returns exactly the alerts that arrived since the household last looked. Start your answer with its headline, word for word, then describe each Urgent and Notable alert without giving any other counts.
-- "While I was asleep", "overnight" or "last night": every alert says whether it happened during the household's sleep hours (duringSleepHours). Answer only from alerts where it's true, from the most recent night, and leave every other alert out, even if it was recent.
+- "What did I miss?" or "since I last checked": use list_new_alerts, which returns exactly the alerts that arrived since the household last looked. Start your answer with its headline, word for word, then describe each alert in its alerts (the Urgent and Notable ones) without giving any other counts. Leave out its routineAlerts, which the headline already counts, unless there are no other alerts; then sum them up in one sentence.
+- "While I was asleep", "overnight" or "last night": call get_current_time first, then list_alerts with duringSleepHours set to true, so only alerts from the household's sleep hours come back. Answer only from those, from the most recent night, and leave every other alert out, even if it was recent.
 - Other times, such as "today" or "this morning": call get_current_time first, then list_alerts with since and until.
 
 Never count alerts yourself; use the counts and headlines the tools give. When an alert is a repeatVisit, say the same visitor came again rather than describing them as someone new.
 
-Write for someone reading quickly or on a braille display: plain sentences, no markdown, no lists with symbols, no tables, no emoji. Start with the direct answer in one sentence. Then give what matters most first: Urgent alerts, then Notable ones. Sum up Routine alerts in one sentence unless asked about them. Use the times as the tools give them. Keep the whole answer under 80 words.
+Write for someone reading quickly or on a braille display: plain sentences, no markdown, no lists with symbols, no tables, no emoji. Start with the direct answer in one sentence. For a specific question, such as whether a package came or whether someone came back, describe only the alerts that answer it and stop: don't add other alerts, even Urgent ones, because the household already got those as alerts. For a general question, such as "What did I miss?" or whether there's anything to worry about, give what matters most first: Urgent alerts, then Notable ones, and mention Routine alerts only when there's nothing else. Use the times as the tools give them. Keep the whole answer under ${MAX_ANSWER_WORDS} words.
 
-Don't say who a visitor is unless a tool marks them as a known visitor; describe what the camera saw instead. If there were no matching alerts, say so plainly.`;
+Don't say who a visitor is unless a tool marks them as a known visitor; describe what the camera saw instead. If there were no matching alerts, say so plainly in one sentence and stop: don't mention alerts from outside the time or the kind of subject asked about.`;
 
 function householdZone(preferences: UserPreferences): string {
   return isValidTimeZone(preferences.timeZone) ? preferences.timeZone : DEFAULT_TIME_ZONE;
@@ -78,6 +80,31 @@ function localTime(date: Date, timeZone: string): string {
     hour: "numeric",
     minute: "2-digit",
   }).format(date);
+}
+
+/** The calendar day of `date` in `timeZone`, as YYYY-MM-DD. */
+function localDay(date: Date, timeZone: string): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
+}
+
+/** The calendar day before `day` (YYYY-MM-DD), counted in days rather than 24 hours so DST changes don't matter. */
+function dayBefore(day: string): string {
+  const [year, month, date] = day.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, date - 1)).toISOString().slice(0, 10);
+}
+
+/**
+ * When an alert happened, as short as it can be said: "today 8:20 AM",
+ * "yesterday 11:36 PM", or the full date for anything older. With full
+ * dates on every alert, the model repeated them ("at 8:20 AM on Tue, Oct
+ * 20") and a busy night's answer ran past its word limit.
+ */
+export function alertTime(date: Date, now: Date, timeZone: string): string {
+  const day = localDay(date, timeZone);
+  const today = localDay(now, timeZone);
+  if (day !== today && day !== dayBefore(today)) return localTime(date, timeZone);
+  const time = new Intl.DateTimeFormat("en-US", { timeZone, hour: "numeric", minute: "2-digit" }).format(date);
+  return `${day === today ? "today" : "yesterday"} ${time}`;
 }
 
 function hourLabel(hour: number): string {
@@ -95,13 +122,13 @@ function parseTime(value: string | undefined, field: string): Date | undefined {
 }
 
 /** One alert as the agent sees it: what happened, where, when, and how it was scored. */
-function describeAlert(message: CompanionEventMessage, preferences: UserPreferences) {
+function describeAlert(message: CompanionEventMessage, preferences: UserPreferences, now: Date) {
   const { event, device } = message;
   const timeZone = householdZone(preferences);
   const occurredAt = new Date(event.occurredAt);
   const breakdown = event.scoring?.breakdown ?? {};
   return {
-    time: localTime(occurredAt, timeZone),
+    time: alertTime(occurredAt, now, timeZone),
     duringSleepHours: isWithinQuietHours(occurredAt, sleepHours(preferences), timeZone),
     device: device?.name ?? "Doorbell",
     category: event.classification?.category,
@@ -170,15 +197,19 @@ export function buildCatchUpTools(deps: CatchUpDeps, lastLooked: Date) {
   const listNewAlerts = tool({
     name: "list_new_alerts",
     description:
-      "The alerts that arrived since the household last looked at Prism, most recent first: the answer to \"What did I miss?\". Each says when it happened, which camera, what the camera saw, and its Signal Class.",
+      "The alerts that arrived since the household last looked at Prism, most recent first: the answer to \"What did I miss?\". The Urgent and Notable ones are in alerts and the Routine ones in routineAlerts. Each says when it happened, which camera, what the camera saw, and its Signal Class.",
     inputSchema: z.object({}),
     callback: async () => {
       const preferences = await deps.getPreferences();
       const alerts = await deps.listAlerts({ deliveredSince: lastLooked, limit: MAX_LISTED_ALERTS });
       const looked = localTime(lastLooked, householdZone(preferences));
+      const described = alerts.map((alert) => describeAlert(alert, preferences, deps.now()));
+      // Routine alerts are kept apart: the headline already counts them, and
+      // describing each one made a busy night's answer too long to read at a glance.
       return {
         headline: newAlertsHeadline(alerts, looked),
-        alerts: alerts.map((alert) => describeAlert(alert, preferences)),
+        alerts: described.filter((alert) => alert.signalClass !== "Routine"),
+        routineAlerts: described.filter((alert) => alert.signalClass === "Routine"),
       };
     },
   });
@@ -192,18 +223,29 @@ export function buildCatchUpTools(deps: CatchUpDeps, lastLooked: Date) {
       until: timeField("Only alerts before this time"),
       signalClass: z.enum(SIGNAL_CLASSES).optional().describe("Only alerts of this Signal Class"),
       category: z.enum(CATEGORIES).optional().describe("Only alerts about this kind of subject"),
+      duringSleepHours: z
+        .boolean()
+        .optional()
+        .describe("Only alerts during (true) or outside (false) the household's sleep hours"),
       limit: z.number().int().min(1).max(MAX_LISTED_ALERTS).optional().describe("At most this many alerts (default 20)"),
     }),
     callback: async (input) => {
       const preferences = await deps.getPreferences();
+      const limit = input.limit ?? 20;
+      const bySleepHours = input.duringSleepHours !== undefined;
       const alerts = await deps.listAlerts({
         since: parseTime(input.since, "since"),
         until: parseTime(input.until, "until"),
         signalClass: input.signalClass,
         category: input.category,
-        limit: input.limit ?? 20,
+        // Sleep hours are worked out here, not in the store, so fetch enough to filter.
+        limit: bySleepHours ? MAX_COUNTED_ALERTS : limit,
       });
-      return { count: alerts.length, alerts: alerts.map((alert) => describeAlert(alert, preferences)) };
+      const described = alerts
+        .map((alert) => describeAlert(alert, preferences, deps.now()))
+        .filter((alert) => !bySleepHours || alert.duringSleepHours === input.duringSleepHours)
+        .slice(0, limit);
+      return { count: described.length, alerts: described };
     },
   });
 
@@ -255,7 +297,21 @@ const defaultDeps = (): CatchUpDeps => ({
   now: () => new Date(),
 });
 
-/** Runs the agent and returns its plain-text answer. */
+export function wordCount(text: string): number {
+  return text.split(/\s+/).filter(Boolean).length;
+}
+
+/** What the agent is asked when its answer is too long. */
+export function shortenPrompt(words: number): string {
+  return `That answer is ${words} words. Rewrite it in under ${MAX_ANSWER_WORDS} words, in the same plain style. Keep the opening sentence word for word and every Urgent alert; shorten the rest, and leave out Routine alerts first. Don't call any tools.`;
+}
+
+/**
+ * Runs the agent and returns its plain-text answer. The word limit is
+ * checked in code: with several Urgent and Notable alerts, the model
+ * often ran past it, so an answer that's too long gets one rewrite in the
+ * same conversation, and the shorter of the two is returned.
+ */
 export async function answerCatchUp(
   request: CatchUpRequest,
   deps: CatchUpDeps = defaultDeps(),
@@ -264,7 +320,14 @@ export async function answerCatchUp(
   const tools = buildCatchUpTools(deps, lastLookedAt(request, deps.now()));
   const agent = new Agent({ model, systemPrompt: SYSTEM_PROMPT, tools, printer: false });
   const startedAt = Date.now();
-  const result = await agent.invoke(catchUpPrompt(request));
-  console.log(`[catch-up] answered in ${Date.now() - startedAt} ms`);
-  return result.toString().trim();
+  let answer = (await agent.invoke(catchUpPrompt(request))).toString().trim();
+  const words = wordCount(answer);
+  if (words >= MAX_ANSWER_WORDS) {
+    const rewrite = (await agent.invoke(shortenPrompt(words))).toString().trim();
+    if (rewrite && wordCount(rewrite) < words) answer = rewrite;
+    console.log(`[catch-up] answered in ${Date.now() - startedAt} ms (shortened from ${words} to ${wordCount(answer)} words)`);
+  } else {
+    console.log(`[catch-up] answered in ${Date.now() - startedAt} ms`);
+  }
+  return answer;
 }
