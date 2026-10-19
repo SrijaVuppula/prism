@@ -13,6 +13,7 @@
     "clear-history": "ts-node src/db/clearHistory.ts",
     "eval": "ts-node eval/runEvaluation.ts",
     "eval:repeat": "ts-node eval/measureRepeatMatching.ts",
+    "eval:catch-up": "ts-node eval/measureCatchUp.ts",
     "ring:devices": "ts-node src/ring/listDevices.ts"
   },
   "dependencies": {

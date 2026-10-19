@@ -115,6 +115,7 @@ From then on, doorbell presses and motion events arrive as signed webhooks, and 
 - `npm run build` — compile every workspace
 - `npm run migrate` — apply any new database migrations
 - `npm run clear-history` — delete stored alerts, repeat-visitor memory, feedback and visitor tags (keeps settings, push subscriptions and any linked Ring account)
+- `npm run eval:catch-up --workspace=prism-backend` — ask the catch-up agent 10 questions about a fixed household day with known answers, and check each answer's facts and format (live Bedrock)
 - `npm run eval:repeat --workspace=prism-backend` — measure how well repeat-visitor matching separates the same visitor from different ones (live Bedrock), to tune its thresholds
 - `npm run init-env` — fill in generated values missing from `packages/prism-backend/.env` (never overwrites existing ones)
 - `npm run ring:devices` — list the Ring devices `RING_ACCESS_TOKEN` can see (live Ring API)
