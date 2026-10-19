@@ -21,7 +21,7 @@ Today's fix is separate alerting hardware. A Bellman Visit door transmitter ([$1
 
 **AI describes what the camera saw. Plain code decides how urgent it is, and shows why.**
 
-Prism connects Ring's real-time events to Amazon Bedrock, which describes each snapshot, and to an explainable Signal Score, which rates the event Routine, Notable or Urgent. The companion web app, on a phone or computer the household already owns, shows every alert as a visual card, vibrates in a distinct pattern for Notable and Urgent alerts, and sends a push notification for Urgent ones. No extra hardware is needed.
+Prism connects Ring's real-time events to Amazon Bedrock, which describes each snapshot, and to an explainable Signal Score, which rates the event Routine, Notable or Urgent. The companion web app, on a phone or computer the household already owns, shows every alert as a visual card, vibrates in a distinct pattern for Notable and Urgent alerts, with low tones in the same rhythm (switchable on each device), and sends a push notification for Urgent ones. No extra hardware is needed.
 
 When you've been away, the app's **Catch up** panel answers "What did I miss?", or a question like "Did a package come today?", in a few plain sentences short enough for a braille display. It's a [Strands Agents](https://strandsagents.com) agent on Amazon Bedrock that looks up your recent alerts itself (see `docs/ARCHITECTURE.md`).
 

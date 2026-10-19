@@ -1,8 +1,9 @@
 // Settings UI for the household's alert preferences: time zone, quiet
 // hours, the known-visitor-tagging opt-in (with its privacy disclosure
 // inline, per docs/ACCESSIBILITY.md), and per-Signal-Class haptic pattern
-// overrides. Below the form, "Your data" explains what Prism stores and
-// deletes the alert history.
+// overrides. Below the form, a switch for alert sounds on this device
+// (saved right away, in this browser only), and "Your data", which explains
+// what Prism stores and deletes the alert history.
 // A plain form bound to usePreferences -- no separate "draft" state library,
 // just local component state seeded from the loaded preferences and PUT on
 // submit.
@@ -10,6 +11,7 @@
 import { useEffect, useState } from "react";
 import type { SignalClass } from "prism-alert-engine";
 import { usePreferences } from "../hooks/usePreferences";
+import { readAlertSoundsEnabled, writeAlertSoundsEnabled } from "../lib/alertSound";
 import { deviceTimeZone, timeZoneLabel, timeZoneOptions } from "../lib/timeZones";
 import { YourDataSection } from "./YourDataSection";
 import type { UserPreferences } from "../types";
@@ -38,6 +40,7 @@ function textToPattern(text: string): number[] | undefined {
 export function SettingsPanel({ onClose, onHistoryDeleted }: { onClose: () => void; onHistoryDeleted?: () => void }) {
   const { preferences, loading, saveStatus, error, save } = usePreferences();
   const [draft, setDraft] = useState<UserPreferences>(preferences);
+  const [alertSounds, setAlertSounds] = useState(readAlertSoundsEnabled);
   const thisDevice = deviceTimeZone();
 
   useEffect(() => {
@@ -193,6 +196,25 @@ export function SettingsPanel({ onClose, onHistoryDeleted }: { onClose: () => vo
           </p>
         </div>
       </form>
+
+      <fieldset className="settings-panel__section">
+        <legend>Sound on this device</legend>
+        <label className="settings-panel__checkbox">
+          <input
+            type="checkbox"
+            checked={alertSounds}
+            onChange={(e) => {
+              setAlertSounds(e.target.checked);
+              writeAlertSoundsEnabled(e.target.checked);
+            }}
+          />
+          Play alert sounds
+        </label>
+        <p className="settings-panel__hint">
+          Urgent and Notable alerts play low tones in the same rhythm as their vibration. Saved on this device right
+          away.
+        </p>
+      </fieldset>
 
       <YourDataSection onHistoryDeleted={onHistoryDeleted} />
     </section>

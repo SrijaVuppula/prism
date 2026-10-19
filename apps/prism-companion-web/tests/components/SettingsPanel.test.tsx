@@ -43,6 +43,23 @@ describe("SettingsPanel", () => {
     expect(getByText(/opt-in only/i)).toBeInTheDocument();
   });
 
+  it("has a 'Play alert sounds' switch for this device, on by default, saved as soon as it's changed", async () => {
+    const user = userEvent.setup();
+    const { findByRole } = render(<SettingsPanel onClose={() => {}} />);
+    const group = await findByRole("group", { name: /sound on this device/i });
+    const toggle = await findByRole("checkbox", { name: "Play alert sounds" });
+    expect(group).toContainElement(toggle);
+    expect(toggle).toBeChecked();
+
+    await user.click(toggle);
+    expect(toggle).not.toBeChecked();
+    expect(window.localStorage.getItem("prism.alertSounds")).toBe("off");
+    // A device setting, not the household's: nothing is saved to the backend.
+    const writes = vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method && init.method !== "GET");
+    expect(writes).toEqual([]);
+    window.localStorage.clear();
+  });
+
   it("says next to the quiet hours toggle that a person at the door still alerts at full urgency", async () => {
     const { findByRole } = render(<SettingsPanel onClose={() => {}} />);
     const quietHours = await findByRole("group", { name: /quiet hours/i });

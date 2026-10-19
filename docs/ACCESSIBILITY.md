@@ -28,21 +28,34 @@
   9. Your data: the delete confirmation moves focus to Cancel with the question read, Cancel returns focus to the delete button, and a completed delete announces "Alert history deleted."
   10. Keyboard only, with VoiceOver off: every control is reachable with Tab and Shift+Tab in a sensible order, with a visible focus outline and no trap
 
-## Vibration pattern specs (Web Vibration API)
+## Vibration and sound
 
-| Signal Class | Pattern (ms, on/off pairs) | Rationale |
-| --- | --- | --- |
-| Routine | `[100]` | Single short pulse — present, not demanding |
-| Notable | `[150, 100, 150]` | Two-beat pattern — noticeably distinct from Routine |
-| Urgent | `[300, 150, 300, 150, 300]` | Long-pause-long, repeated — unmistakable from the other two |
+| Signal Class | Vibration pattern (ms, on/off) | Sound | Rationale |
+| --- | --- | --- | --- |
+| Routine | None | None | Visual card only: present, not demanding |
+| Notable | `[150, 100, 150]` | Two tones at 523 Hz | Two-beat pattern, noticeably distinct from Urgent |
+| Urgent | `[300, 150, 300, 150, 300]` | Three tones at 392 Hz | Long-pause-long, repeated: unmistakable |
 
-_(keep this table in sync with `channels/haptic.ts` as the patterns are tuned)_
+The patterns come from `encodeHapticPattern()` in `prism-alert-engine`
+(`channels/haptic.ts`), with any per-class override the household sets in
+Settings. The backend sends a pattern only with Notable and Urgent alerts,
+and the companion app passes it straight to `navigator.vibrate()`
+(`useVibration.ts`). Browsers without the Vibration API (notably iOS Safari
+and desktop browsers) skip it; the visual card and push notification still
+carry the alert there.
 
-The companion app never re-implements these patterns: `useVibration.ts` calls
-`encodeHapticPattern(signalClass)` from `prism-alert-engine` directly and
-passes the result straight to `navigator.vibrate()`. Browsers without
-Vibration API support (notably iOS Safari) silently skip it — the visual
-context card and push notification still carry the alert there.
+The sound follows the same pattern (`useAlertSound.ts`, `lib/alertSound.ts`):
+one tone for each pulse, so it has the same rhythm as the vibration and
+can be heard on a device that can't vibrate. The tones are generated with
+the Web Audio API and are low-pitched, since high frequencies are usually
+the first to go with hearing loss, with Urgent lower than Notable. Sound is
+a setting for each device ("Play alert sounds" in Settings, on by default,
+kept in that browser), since a kitchen laptop and a phone by the bed may
+need different choices. Like vibration, only alerts that arrive while the
+app is open make a sound, not ones loaded from history. Browsers only allow
+sound after the person has interacted with the page, so the app starts its
+audio on the first tap or key press; an alert that arrives before then is
+silent.
 
 ## Known-visitor tagging — privacy note
 
