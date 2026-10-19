@@ -32,6 +32,12 @@ window on one device, and doesn't know who anyone is.
   embedding. AWS states that Bedrock doesn't store prompts or responses and
   doesn't use them to train models (unless the account owner turns on
   Bedrock's model invocation logging).
+- **Amazon Bedrock** also receives, when the household uses Catch up, its
+  question and the stored alerts the agent looks up: each one's time,
+  camera name, description, Signal Class and score, and whether it was a
+  repeat visit or happened during sleep hours. No snapshots are sent, and
+  known-visitor tags aren't either (only whether an alert was from a known
+  visitor). The same AWS terms apply.
 - **The browser's push service** (e.g. Google's for Chrome) carries Urgent
   alerts to subscribed devices, encrypted end to end with the subscription's
   keys.

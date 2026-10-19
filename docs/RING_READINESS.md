@@ -38,9 +38,9 @@ covered by tests and exercised end to end with the event simulator.
 | Data minimization | Snapshots aren't stored; history is kept 30 days by default ([`PRIVACY.md`](PRIVACY.md)) | Done |
 | Retention and deletion | Automatic deletion after `HISTORY_RETENTION_DAYS`; Settings > Your data deletes history now, after a confirmation step | Done |
 | Data subject access requests | The household sees its full alert history in the app. There's no export of the stored data yet | Partly |
-| AI governance: is Ring user data used to train models? | No. Snapshots go to Amazon Bedrock only to classify the event; AWS states Bedrock doesn't store prompts or responses or use them for training ([`PRIVACY.md`](PRIVACY.md)) | Done |
+| AI governance: is Ring user data used to train models? | No. Snapshots go to Amazon Bedrock only to classify the event, and Catch up sends Bedrock the text of the alerts it looks up (no images) to answer the household's question; AWS states Bedrock doesn't store prompts or responses or use them for training ([`PRIVACY.md`](PRIVACY.md)) | Done |
 | Documentation for facial recognition features, such as a privacy impact assessment | Prism doesn't do facial recognition. Known-visitor tagging is opt-in, off by default, and compares written descriptions of visible traits within one household's own database ([`PRIVACY.md`](PRIVACY.md)). A reviewer may still ask about it | Done, documented |
-| Third parties | Amazon Bedrock and the browser's push service, listed with what each receives ([`PRIVACY.md`](PRIVACY.md)) | Done |
+| Third parties | Amazon Bedrock (snapshots for classification, and alert text for Catch up) and the browser's push service, listed with what each receives ([`PRIVACY.md`](PRIVACY.md)) | Done |
 | Links to a privacy policy and terms of service | `PRIVACY.md` describes what's stored and where it goes, but isn't a hosted legal privacy policy, and there are no terms of service yet | To do |
 
 ## Accessibility and design

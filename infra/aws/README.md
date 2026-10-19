@@ -1,6 +1,6 @@
 # AWS setup
 
-Prism's backend calls Amazon Bedrock for two things, both with
+Prism's backend calls Amazon Bedrock for three things, all with
 `bedrock:InvokeModel` and nothing else:
 
 - **Snapshot classification** -- Claude Haiku 4.5 through the US
@@ -9,6 +9,9 @@ Prism's backend calls Amazon Bedrock for two things, both with
 - **Repeat-visitor embeddings** -- Amazon Titan Text Embeddings V2,
   `amazon.titan-embed-text-v2:0`, in the same region
   (`BEDROCK_EMBEDDING_MODEL_ID`).
+- **The Catch up agent** -- the same Claude Haiku 4.5 inference profile,
+  through the Converse API without streaming, which needs no permission
+  beyond `bedrock:InvokeModel`.
 
 ## Model access
 

@@ -5,8 +5,9 @@
 // below shows up individually in `breakdown`, so the result can be inspected and explained
 // after the fact instead of taken on faith.
 //
-// TODO: calibrate weights and thresholds against a labeled test set
-// (~30-50 events across all four categories, plus edge cases).
+// The weights and class thresholds are set by hand, not fitted to labeled data.
+// A household's thumbs up/down votes shift the category weights over time
+// (`feedbackAdjustment`).
 
 import { EventCategory, ScoringInput, ScoringResult, SignalClass } from "./types";
 

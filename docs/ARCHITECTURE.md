@@ -195,7 +195,7 @@ tools:
 
 Every alert the tools return carries its local time, camera, description,
 Signal Class, whether it was a repeat visit, and whether it happened during
-the sleep hours. Three judgments are made in code rather than left to
+the sleep hours. Three decisions are made in code rather than left to
 the model: which alerts are new, which came while the household was asleep,
 and how many there were (`list_new_alerts` returns an opening sentence such
 as "You have 5 new alerts: 1 Urgent, 3 Notable and 1 Routine.", which the
@@ -257,7 +257,7 @@ Bedrock embedding model → vector per event (the visitor signature, plus option
 
 **Choosing the thresholds**: `npm run eval:repeat --workspace=prism-backend` classifies a sample of the fixture snapshots twice each with live Bedrock and reports, for signatures, descriptions and (when enabled) snapshot images, how similar the same snapshot is to itself across runs versus how similar different snapshots are, with a suggested threshold when the two groups separate cleanly.
 
-**Known-visitor tagging is a separate, opt-in layer on top of this.** `isKnownVisitor` stays false regardless of repeatVisitCount unless the household has turned on known-visitor tagging in Settings *and* that specific visitor group has been tagged (`db/knownVisitorTagStore.ts`) -- see docs/ACCESSIBILITY.md's privacy note. This is why `scoring.ts` has always had `knownVisitor` and `repeatVisit` as two separate breakdown factors: they're independently derived, one automatic and identity-free, the other opt-in and persistent.
+**Known-visitor tagging is a separate, opt-in layer on top of this.** `isKnownVisitor` stays false regardless of repeatVisitCount unless the household has turned on known-visitor tagging in Settings *and* that specific visitor group has been tagged (`db/knownVisitorTagStore.ts`) -- see docs/PRIVACY.md. This is why `scoring.ts` has always had `knownVisitor` and `repeatVisit` as two separate breakdown factors: they're independently derived, one automatic and identity-free, the other opt-in and persistent.
 
 **Personalization inputs**: `agentOrchestration.ts` resolves quiet hours and haptic overrides from `preferences/preferencesStore.ts`, and a feedback-derived scoring-weight bias from `feedback/weightAdjustment.ts` (see "Feedback loop" below), on every pipeline run. Each of these -- preferences, repeat-visitor memory, and scoring weights -- is best-effort: a lookup failure is logged and falls back to the conservative default rather than ever blocking alert delivery on Postgres being reachable.
 

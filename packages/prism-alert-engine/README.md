@@ -6,8 +6,11 @@ Context-to-alert engine: takes a normalized camera event + a Bedrock (or any mul
 
 ## Install
 
+The package isn't published to npm. Use it as a workspace dependency, as Prism's monorepo does, or clone the repository and build it:
+
 ```bash
-npm install prism-alert-engine
+npm install
+npm run build
 ```
 
 ## Usage

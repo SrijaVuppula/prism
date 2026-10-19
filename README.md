@@ -67,7 +67,7 @@ Methods and full results are in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) a
 
 ## Structure
 
-- `packages/prism-alert-engine` — Ring-agnostic core: a Bedrock classification wrapper, the Signal Score engine, and channel encoders (haptic/visual/push). Standalone and MIT-licensed; any doorbell or camera vendor could adopt it directly.
+- `packages/prism-alert-engine` — Ring-agnostic core: a classifier interface, the Signal Score engine, and channel encoders (haptic/visual/push). Standalone and MIT-licensed; any doorbell or camera vendor could adopt it directly.
 - `packages/prism-backend` — Ring account linking, webhook ingestion and Ring API calls, Bedrock classification + orchestration, Postgres + pgvector event store.
 - `apps/prism-companion-web` — the React/PWA companion app that receives alerts in real time.
 - `infra/` — the Bedrock IAM policy and AWS setup notes, a CloudFormation template for the public demo, and a docker-compose setup (Postgres, plus an optional containerized backend).
@@ -126,7 +126,7 @@ From then on, doorbell presses and motion events arrive as signed webhooks, and 
 
 Prism learns a household's preferences without any account system: quiet hours, per-Signal-Class haptic pattern overrides, and thumbs up/down feedback on each alert's classification (which gradually adjusts the Signal Score's category weights -- see `docs/ARCHITECTURE.md`) are all editable from the companion app's Settings panel.
 
-Known-visitor tagging is a separate, **strictly opt-in** feature, off by default. When a household turns it on, it can label a repeat visitor (e.g. "Mail carrier") so Prism de-escalates future alerts from that same visitor. Tags are matched using on-device/on-backend vector similarity, stored only in this household's own Postgres database, and are never uploaded, shared, or sent to any third party. Turning the feature off stops new tagging immediately; it does not delete tags already saved.
+Known-visitor tagging is a separate, **strictly opt-in** feature, off by default. When a household turns it on, it can label a repeat visitor (e.g. "Mail carrier") so Prism de-escalates future alerts from that same visitor. Tags are matched using vector similarity on the backend, stored only in this household's own Postgres database, and are never uploaded, shared, or sent to any third party. Turning the feature off stops new tagging immediately; it does not delete tags already saved.
 
 Alert history is kept for 30 days by default (`HISTORY_RETENTION_DAYS`) and can be deleted at any time from Settings > Your data in the companion app. Snapshots aren't stored, and Ring privacy zones are blacked out before a snapshot is analyzed or shown. See `docs/PRIVACY.md` for what Prism stores, what leaves the household's server, and how to delete it.
 
@@ -134,7 +134,7 @@ Alert history is kept for 30 days by default (`HISTORY_RETENTION_DAYS`) and can 
 
 The Ring integration follows Ring's Partner API documentation: one-way account linking (token exchange, the signed-nonce Account Link page, token refresh), v1.1 webhook ingestion (X-Signature verification, deduplication), snapshot downloads with privacy zones blacked out, device lookups, and reading the event history for missed events, all through the Ring API. It is covered by tests and exercised end to end with the event simulator, but has not yet been run against a live Ring account. The Signal Score engine is built and tested. Bedrock classification is wired end to end from the webhook receiver through the Signal Score engine to a channel decision. Real-time delivery is live: a WebSocket server broadcasts scored events to the companion web app, and Web Push notifications reach subscribed devices even when the app isn't in focus. Measured WebSocket delivery latency (`npm run measure-delivery-latency`) is sub-millisecond locally -- see `docs/ARCHITECTURE.md` for the methodology and numbers. The companion app itself renders the visual context card and triggers the haptic pattern for each alert.
 
-The catch-up summary is tested with a scripted model standing in for Bedrock, and its answers from the live model are measured with `npm run eval:catch-up` (see `docs/ARCHITECTURE.md`). Personalization and session memory are also built and tested: repeat-visitor memory (Bedrock embeddings + pgvector similarity search, scoped to a rolling per-device session window), per-household preferences (quiet hours, haptic overrides, the known-visitor-tagging opt-in), and a feedback loop that adjusts Signal Score category weights from accumulated thumbs up/down votes.
+The catch-up summary is tested with a scripted model standing in for Bedrock, and its answers from the live model are measured with `npm run eval:catch-up --workspace=prism-backend` (see `docs/ARCHITECTURE.md`). Personalization and session memory are also built and tested: repeat-visitor memory (Bedrock embeddings + pgvector similarity search, scoped to a rolling per-device session window), per-household preferences (quiet hours, haptic overrides, the known-visitor-tagging opt-in), and a feedback loop that adjusts Signal Score category weights from accumulated thumbs up/down votes.
 
 ## Accessibility
 

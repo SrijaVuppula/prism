@@ -1,7 +1,7 @@
 {
   "name": "prism-alert-engine",
   "version": "0.1.0",
-  "description": "Explainable context-to-alert engine: Bedrock classification wrapper, Signal Score scoring, and haptic/visual/push channel encoders. Camera/vendor-agnostic — no Ring-specific code.",
+  "description": "Explainable context-to-alert engine: a classifier interface, Signal Score scoring, and haptic/visual/push channel encoders. Camera/vendor-agnostic — no Ring-specific code.",
   "license": "MIT",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
