@@ -118,6 +118,7 @@ From then on, doorbell presses and motion events arrive as signed webhooks, and 
 - `npm run eval:repeat --workspace=prism-backend` — measure how well repeat-visitor matching separates the same visitor from different ones (live Bedrock), to tune its thresholds
 - `npm run init-env` — fill in generated values missing from `packages/prism-backend/.env` (never overwrites existing ones)
 - `npm run ring:devices` — list the Ring devices `RING_ACCESS_TOKEN` can see (live Ring API)
+- `npm run forged-webhooks` — send an unsigned and a wrongly signed Ring webhook to a Prism server and check it rejects both with a 401 (set `SIMULATOR_TARGET_URL` to try a deployed server, such as the live demo)
 
 ## Personalization and privacy
 
